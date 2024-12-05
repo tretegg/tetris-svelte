@@ -188,7 +188,13 @@
     }
 
     function collision(piece: Piece, direction?: string): boolean {
-        let tempPiece = piece;
+        let tempPiece = {
+            x: piece.x,
+            y: piece.y,
+            color: piece.color,
+            shape: piece.shape.map(row => [...row]), // copy the shape array
+            grounded: piece.grounded
+        };
         if (direction === "left") {
             tempPiece.x--;
         } else if (direction === "right") {
@@ -249,11 +255,13 @@
             }
         }
         bottomY = tempPiece.y + bottomY;
+        console.log(bottomY);
 
-        console.log(leftmostX, rightmostX, bottomY);
-
-        if (tempPiece.x < 0 || rightmostX >= canvas.width / CELLSIZE || bottomY >= canvas.height / CELLSIZE) {
-            piece.grounded = true;
+        if (leftmostX < 0 || rightmostX >= canvas.width / CELLSIZE) {
+            return true;
+        } else if (bottomY >= canvas.height / CELLSIZE) {
+            newPiece();
+            piece.grounded = true; 
             return true;
         }
 
