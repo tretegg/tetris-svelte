@@ -7,25 +7,19 @@
     type Shape = number[][];
     const SHAPES: Shape[] = [
         [
-            [0, 0, 0],
             [1, 1, 1],
             [0, 1, 0]
         ],
         [
             [0, 1, 1],
-            [1, 1, 0],
-            [0, 0, 0]
+            [1, 1, 0]
         ],
         [
             [1, 0, 0],
-            [1, 1, 1],
-            [0, 0, 0]
+            [1, 1, 1]
         ],
         [
-            [0, 0, 0, 0],
-            [1, 1, 1, 1],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0]
+            [1, 1, 1, 1]
         ],
         [
             [1, 1],
@@ -33,15 +27,14 @@
         ],
         [
             [0, 0, 1],
-            [1, 1, 1],
-            [0, 0, 0]
+            [1, 1, 1]
         ],
         [
             [1, 1, 0],
-            [0, 1, 1],
-            [0, 0, 0]
+            [0, 1, 1]
         ]
     ];
+
     const COLORS = [
         "#ffdb00",
         "#00ff92",
@@ -75,27 +68,55 @@
 
         ctx = canvas.getContext("2d")!;
         ctx.scale(CELLSIZE, CELLSIZE);
+
         setInterval(draw, 1000 / 60);
         setInterval(lower, 1000 / speed);
     });
 
     function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawGrid(CELLSIZE); // Draw a grid with 40px cells
+        ctx.clearRect(0, 0, 400, 800); // Clear the canvas
+        drawGrid(CELLSIZE); // Draw the grid with 40px cells
+
         pieces.forEach((element) => {
-            // For each element in the pieces array
+            // For each piece in the pieces array
             element.shape.forEach((row, rowIndex) => {
-                // For each row
+                // For each row of the piece
                 row.forEach((cell, colIndex) => {
-                    // For each cell
+                    // For each cell in the row
                     if (cell === 1) {
+                        // Set the fill color for the piece
                         ctx.fillStyle = element.color;
-                        ctx.fillRect(element.x + colIndex, element.y + rowIndex, 1, 1);
+
+                        // Fill the rectangle (the block in the piece)
+                        ctx.fillRect(
+                            element.x + colIndex, 
+                            element.y + rowIndex, 
+                            1, 1
+                        );
+
+                        // Set the outline color (adjusted) and line width for the inner outline
+                        ctx.strokeStyle = adjust(element.color, -20); // Outline color adjusted
+                        ctx.lineWidth = 0.1; // Outline thickness
+
+                        // Draw the outline, but slightly shrink the position to apply inside the shape
+                        ctx.strokeRect(
+                            element.x + colIndex + 0.05,  // Slightly shift right
+                            element.y + rowIndex + 0.05,   // Slightly shift down
+                            1 - 0.1,  // Shrink the width and height for the outline to appear inside
+                            1 - 0.1    // Shrink the width and height for the outline to appear inside
+                        );
                     }
                 });
             });
         });
     }
+
+
+    // Allows you to lighten or darken a color
+    function adjust(color: string, amount: number) {
+        return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+    }
+
 
     function lower() {
         pieces.forEach((element) => {
@@ -111,18 +132,18 @@
         ctx.lineWidth = 0.5;
 
         // Draw vertical lines
-        for (let x = 0; x <= canvas.width; x += cellSize) {
+        for (let x = 0; x <= 400; x += cellSize) {
             ctx.beginPath();
             ctx.moveTo(x, 0);
-            ctx.lineTo(x, canvas.height);
+            ctx.lineTo(x, 800);
             ctx.stroke();
         }
 
         // Draw horizontal lines
-        for (let y = 0; y <= canvas.height; y += cellSize) {
+        for (let y = 0; y <= 800; y += cellSize) {
             ctx.beginPath();
             ctx.moveTo(0, y);
-            ctx.lineTo(canvas.width, y);
+            ctx.lineTo(400, y);
             ctx.stroke();
         }
 
@@ -171,21 +192,65 @@
         });
     }
 
-    function move(key: string) {
-        if (key === "a") {
-            pieces.forEach((element) => {
-                if (!element.grounded && !collision(element, "left")) element.x--;
-            });
-        } else if (key === "d") {
-            pieces.forEach((element) => {
-                if (!element.grounded && !collision(element, "right")) element.x++;
-            });
-        } else if (key === "s") {
-            pieces.forEach((element) => {
-                if (!element.grounded && !collision(element, "down")) element.y++;
-            });
-        }  
+    function rotateClockwise(matrix: number[][]): number[][] {
+        const rows = matrix.length;
+        const cols = matrix[0].length;
+        const rotated: number[][] = Array.from({ length: cols }, () => Array(rows).fill(0));
+
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                rotated[col][rows - 1 - row] = matrix[row][col];
+            }
+        }
+        return rotated;
     }
+
+    function rotateCounterclockwise(matrix: number[][]): number[][] {
+        const rows = matrix.length;
+        const cols = matrix[0].length;
+        const rotated: number[][] = Array.from({ length: cols }, () => Array(rows).fill(0));
+
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                rotated[cols - 1 - col][row] = matrix[row][col];
+            }
+        }
+        return rotated;
+    }
+
+    function move(key: string) {
+        pieces.forEach((element) => {
+            if (element.grounded) return;
+
+            if (key === "a" && !collision(element, "left")) {
+                element.x--;
+            } else if (key === "d" && !collision(element, "right")) {
+                element.x++;
+            } else if (key === "s" && !collision(element, "down")) {
+                element.y++;
+            } else if (key === "ArrowRight") {
+                console.log("right")
+                const rotatedShape = rotateClockwise(element.shape);
+                const tempPiece = { ...element, shape: rotatedShape };
+                if (!collision(tempPiece)) {
+                    element.shape = rotatedShape;
+                }
+            } else if (key === "ArrowLeft") {
+                const rotatedShape = rotateCounterclockwise(element.shape);
+                const tempPiece = { ...element, shape: rotatedShape };
+                if (!collision(tempPiece)) {
+                    element.shape = rotatedShape;
+                }
+            } else if (key === " ") {
+                while (!collision(element, "down")) {
+                    element.y++;
+                }
+            } else {
+                return
+            }
+        });
+    }
+
 
     function collision(piece: Piece, direction?: string): boolean {
         let tempPiece = {
@@ -206,75 +271,112 @@
         for (let row = 0; row < piece.shape.length; row++) {
             for (let col = 0; col < piece.shape[row].length; col++) {
                 const cell = piece.shape[row][col];
-                pieces.forEach(element => {
-                    if (element.grounded) {
-                        for (let row2 = 0; row2 < element.shape.length; row2++) {
-                            for (let col2 = 0; col2 < element.shape[row2].length; col2++) {
-                                const cell2 = element.shape[row][col];
-                                if (cell === 1 && cell2 === 1 && element.x +row2 === tempPiece.x + row && element.y + col2 === tempPiece.y + col) {
-                                    return true;
+                if (cell === 1) {
+                    const x = tempPiece.x + col;
+                    const y = tempPiece.y + row;
+
+
+                    for (const grounded of pieces) {
+                        if (grounded.grounded) {
+                            for (let gRow = 0; gRow < grounded.shape.length; gRow++) {
+                                for (let gCol = 0; gCol < grounded.shape[gRow].length; gCol++) {
+                                    const gCell = grounded.shape[gRow][gCol];
+                                    if (
+                                        gCell === 1 &&
+                                        grounded.x + gCol === x &&
+                                        grounded.y + gRow === y
+                                    ) {
+                                        if (direction == "down") piece.grounded = true; 
+                                        if (direction == "down") newPiece();
+                                        return true;
+                                    }
                                 }
                             }
                         }
                     }
-                });
+                }
             }
         }
         // Check grid boundaries
 
         // Leftmost x value
-        let leftmostX = 4;
+        let leftmostX = piece.shape[0].length;
         for (let row = 0; row < piece.shape.length; row++) {
             for (let col = 0; col < piece.shape[row].length; col++) {
                 const cell = piece.shape[row][col];
-                if (cell === 1 && row < leftmostX) {
-                    leftmostX = row;
+                if (cell === 1) {
+                    leftmostX = Math.min(leftmostX, col); // Update to the smallest column index
                 }
             }
         }
         leftmostX = tempPiece.x + leftmostX;
-        // Rightmost x value
+
+        //Rightmost x value
         let rightmostX = 0;
         for (let row = 0; row < piece.shape.length; row++) {
             for (let col = 0; col < piece.shape[row].length; col++) {
                 const cell = piece.shape[row][col];
-                if (cell === 1 && row > rightmostX) {
-                    rightmostX = row;
+                if (cell === 1) {
+                    rightmostX = Math.max(rightmostX, col); // Update to the largest column index
                 }
             }
         }
         rightmostX = tempPiece.x + rightmostX;
+
         //Bottom y value
         let bottomY = 0;
         for (let row = 0; row < piece.shape.length; row++) {
             for (let col = 0; col < piece.shape[row].length; col++) {
                 const cell = piece.shape[row][col];
-                if (cell === 1 && col < bottomY) {
-                    bottomY = col;
+                if (cell === 1) {
+                    bottomY = Math.max(bottomY, row);
                 }
             }
         }
-        bottomY = tempPiece.y + bottomY;
-        console.log(bottomY);
+        bottomY = tempPiece.y + bottomY; // Adjust for the piece's position on the grid
 
-        if (leftmostX < 0 || rightmostX >= canvas.width / CELLSIZE) {
+        // console.log("Bottom Y:", bottomY);
+
+        if (leftmostX < 0 || rightmostX >= 400 / CELLSIZE) {
             return true;
-        } else if (bottomY >= canvas.height / CELLSIZE) {
-            newPiece();
+        } else if (bottomY >= 800 / CELLSIZE) {
             piece.grounded = true; 
+            newPiece();
             return true;
         }
 
         return false;
     }
+
+    function reset() {
+        // TODO: Reset the game state
+        newPiece();
+    }
 </script>
 
-<svelte:window 
-    on:keypress={(e) => {
-        if (e.key === " ") newPiece();
-        else if (e.key !== " ") move(e.key);
-    }}
+<link
+  href="https://fonts.googleapis.com/css?family=Press+Start+2P"
+  rel="stylesheet"
 />
 
-<canvas bind:this={canvas} class="border-2 ml-2 mt-2 bg-black"></canvas>
 
+<svelte:window 
+    on:keydown={(e) => {
+        move(e.key);
+    }}
+/>
+<div class="flex"> 
+    <canvas bind:this={canvas} class="border-2 ml-2 mt-2 bg-black"></canvas>
+    <div class="flex flex-col ml-2 mt-2">
+        <p class="pixel text-white text-4xl mt-2">TETRIS</p>
+        <button class="pixel border-black border-2 hover:scale-105 transition duration-200 rounded-md"
+        on:click={reset}>Start</button>
+    </div>
+</div>
+
+<style>
+    .pixel {
+        font-family: 'Press Start 2P', cursive;
+    }
+
+</style>
