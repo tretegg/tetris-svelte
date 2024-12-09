@@ -55,6 +55,8 @@
     let pieces: Piece[];
     let speed = 1;
 
+    let grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
+
     onMount(() => {
         if (!canvas) {
             console.error("Canvas element is not found!");
@@ -109,7 +111,72 @@
                 });
             });
         });
+        clearLines();
     }
+
+    function clearLines() {
+        let linesCleared = 0;
+        let clearedLines: number[] = [];
+
+        // Check for full rows and mark them for clearing
+        for (let row = 0; row < grid.length; row++) {
+            if (isRowFull(grid[row])) {
+                linesCleared++;
+                clearedLines.push(row);
+            }
+        }
+
+        if (clearedLines.length > 0) {
+            // Sort cleared lines in descending order to handle bottom-up
+            clearedLines.sort((a, b) => b - a);
+
+            clearedLines.forEach(line => {
+                // Remove the line from the grid
+                grid.splice(line, 1);
+
+                // Add an empty row at the top
+                grid.unshift(new Array(10).fill(0));
+
+                // Adjust pieces' shapes and positions
+                pieces.forEach(piece => {
+                    for (let row = piece.shape.length - 1; row >= 0; row--) {
+                        const globalRow = piece.y + row;
+                        if (globalRow === line) {
+                            // Clear the row in the piece
+                            piece.shape[row].fill(0);
+                        } else if (globalRow > line) {
+                            // Shift rows below the cleared line down
+                            piece.y++;
+                        }
+                    }
+
+                    // Remove fully cleared shapes
+                    piece.shape = piece.shape.filter(row => row.some(cell => cell === 1));
+                });
+            });
+        }
+
+        // Rebuild the grid based on updated pieces
+        grid = new Array(20).fill(0).map(() => new Array(10).fill(0));
+        pieces.forEach(piece => {
+            for (let row = 0; row < piece.shape.length; row++) {
+                for (let col = 0; col < piece.shape[row].length; col++) {
+                    const cell = piece.shape[row][col];
+                    if (cell === 1) {
+                        const x = piece.x + col;
+                        const y = piece.y + row;
+                        grid[y][x] = 1;
+                    }
+                }
+            }
+        });
+    }
+     
+
+    function isRowFull(row: number[]): boolean {
+        return row.every(cell => cell === 1);
+    }
+
 
 
     // Allows you to lighten or darken a color
@@ -120,9 +187,16 @@
 
     function lower() {
         pieces.forEach((element) => {
-            if (!element.grounded && !collision(element)) element.y++;
+            if (!element.grounded) {
+                if (!collision(element, "down")) {
+                    element.y++;
+                } else {
+                    element.grounded = true;
+                }
+            }
         });
     }
+
 
     function drawGrid(cellSize: number) {
         ctx.save(); // Save the current state of the canvas
@@ -333,15 +407,15 @@
                 }
             }
         }
-        bottomY = tempPiece.y + bottomY; // Adjust for the piece's position on the grid
+        bottomY += tempPiece.y; // Adjust for the piece's position on the grid
 
         // console.log("Bottom Y:", bottomY);
 
         if (leftmostX < 0 || rightmostX >= 400 / CELLSIZE) {
             return true;
         } else if (bottomY >= 800 / CELLSIZE) {
-            piece.grounded = true; 
             newPiece();
+            piece.grounded = true;
             return true;
         }
 
@@ -361,7 +435,7 @@
 
 
 <svelte:window 
-    on:keydown={(e) => {
+    on:keydown|preventDefault={(e) => {
         move(e.key);
     }}
 />
