@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { TetrisClient } from "$lib/client/client";
     import { onMount } from "svelte";
 
     let canvas: HTMLCanvasElement;
@@ -19,7 +20,9 @@
             [1, 1, 1]
         ],
         [
-            [1, 1, 1, 1]
+            [0, 0, 0, 0],
+            [1, 1, 1, 1],
+            [0, 0, 0, 0]
         ],
         [
             [1, 1],
@@ -57,6 +60,14 @@
 
     let grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
 
+    let client: TetrisClient;
+
+    type cell = {
+        x: number,
+        y: number,
+        color: string
+    }
+
     onMount(() => {
         if (!canvas) {
             console.error("Canvas element is not found!");
@@ -73,7 +84,14 @@
 
         setInterval(draw, 1000 / 60);
         setInterval(lower, 1000 / speed);
+        // setInterval(table, 1000)
+
+        client = new TetrisClient()
     });
+
+    function table () {
+        console.table(grid)
+    }
 
     function draw() {
         ctx.clearRect(0, 0, 400, 800); // Clear the canvas
@@ -115,43 +133,26 @@
     }
 
     function clearLines() {
-        let linesCleared = 0;
         let clearedLines: number[] = [];
 
         // Check for full rows and mark them for clearing
         for (let row = 0; row < grid.length; row++) {
             if (isRowFull(grid[row])) {
-                linesCleared++;
                 clearedLines.push(row);
             }
         }
 
         if (clearedLines.length > 0) {
-            // Sort cleared lines in descending order to handle bottom-up
-            clearedLines.sort((a, b) => b - a);
 
             clearedLines.forEach(line => {
-                // Remove the line from the grid
-                grid.splice(line, 1);
 
-                // Add an empty row at the top
+                // Remove the line and fill it with 0's
+                grid.splice(line, 1);
+                // Add a new empty row to the top
                 grid.unshift(new Array(10).fill(0));
 
-                // Adjust pieces' shapes and positions
                 pieces.forEach(piece => {
-                    for (let row = piece.shape.length - 1; row >= 0; row--) {
-                        const globalRow = piece.y + row;
-                        if (globalRow === line) {
-                            // Clear the row in the piece
-                            piece.shape[row].fill(0);
-                        } else if (globalRow > line) {
-                            // Shift rows below the cleared line down
-                            piece.y++;
-                        }
-                    }
-
-                    // Remove fully cleared shapes
-                    piece.shape = piece.shape.filter(row => row.some(cell => cell === 1));
+                    // TODO: Shift the piece down
                 });
             });
         }
@@ -303,7 +304,6 @@
             } else if (key === "s" && !collision(element, "down")) {
                 element.y++;
             } else if (key === "ArrowRight") {
-                console.log("right")
                 const rotatedShape = rotateClockwise(element.shape);
                 const tempPiece = { ...element, shape: rotatedShape };
                 if (!collision(tempPiece)) {
@@ -424,6 +424,9 @@
 
     function reset() {
         // TODO: Reset the game state
+        pieces = [];
+        grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
+        speed = 1;
         newPiece();
     }
 </script>
@@ -439,13 +442,15 @@
         move(e.key);
     }}
 />
-<div class="flex"> 
-    <canvas bind:this={canvas} class="border-2 ml-2 mt-2 bg-black"></canvas>
+<div class="flex flex-col
+ w-full h-full items-center justify-center"> 
     <div class="flex flex-col ml-2 mt-2">
         <p class="pixel text-white text-4xl mt-2">TETRIS</p>
         <button class="pixel border-black border-2 hover:scale-105 transition duration-200 rounded-md"
         on:click={reset}>Start</button>
     </div>
+
+    <canvas bind:this={canvas} class="border-2 ml-2 mt-2 bg-black"></canvas>
 </div>
 
 <style>
