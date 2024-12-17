@@ -1,11 +1,11 @@
 <script lang="ts">
-    import { TetrisClient } from "$lib/client/client";
+    import { TetrisClient, type Piece, type Shape } from "$lib/client/client";
     import { onMount } from "svelte";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
     const CELLSIZE = 40;
-    type Shape = number[][];
+
     const SHAPES: Shape[] = [
         [
             [1, 1, 1],
@@ -47,18 +47,14 @@
         "#49ff00",
         "#ff00db"
     ]
+
     let availableShapes: boolean[];
-    type Piece = {
-        x: number,
-        y: number,
-        color: string
-        shape: Shape
-        grounded: boolean
-    }
+    
     let pieces: Piece[];
+    
     let speed = 1;
 
-    let grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
+    let grid: number[][] = new Array(20).fill(0).map(() => new Array(10).fill(0));
 
     let client: TetrisClient;
 
@@ -73,6 +69,8 @@
             console.error("Canvas element is not found!");
             return;
         }
+
+        
         availableShapes = Array(SHAPES.length).fill(true);
         pieces = [];
 
@@ -129,56 +127,86 @@
                 });
             });
         });
+
+        updateGrid();
+
         clearLines();
     }
 
-    function clearLines() {
-        let clearedLines: number[] = [];
-
-        // Check for full rows and mark them for clearing
-        for (let row = 0; row < grid.length; row++) {
-            if (isRowFull(grid[row])) {
-                clearedLines.push(row);
-            }
-        }
-
-        if (clearedLines.length > 0) {
-
-            clearedLines.forEach(line => {
-
-                // Remove the line and fill it with 0's
-                grid.splice(line, 1);
-                // Add a new empty row to the top
-                grid.unshift(new Array(10).fill(0));
-
-                pieces.forEach(piece => {
-                    // TODO: Shift the piece down
-                });
-            });
-        }
-
-        // Rebuild the grid based on updated pieces
+    function updateGrid() {
         grid = new Array(20).fill(0).map(() => new Array(10).fill(0));
         pieces.forEach(piece => {
+            if (!piece.grounded) return;
             for (let row = 0; row < piece.shape.length; row++) {
                 for (let col = 0; col < piece.shape[row].length; col++) {
                     const cell = piece.shape[row][col];
-                    if (cell === 1) {
-                        const x = piece.x + col;
-                        const y = piece.y + row;
+                    const x = piece.x + col;
+                    const y = piece.y + row;
+                    // Bounds check
+                    if (cell === 1 && y >= 0 && y < 20 && x >= 0 && x < 10) {
                         grid[y][x] = 1;
                     }
                 }
             }
         });
     }
-     
 
-    function isRowFull(row: number[]): boolean {
-        return row.every(cell => cell === 1);
+    function clearLines() {
+
+        let clearedLines: number[] = [];
+
+        // Check for full rows and mark them for clearing
+        for (let row = 0; row < grid.length; row++) {
+            if (isRowFull(grid[row])) {
+                console.log("row full", row)
+                clearedLines.push(row);
+            }
+        }
+
+        if (clearedLines.length <= 0) return;
+
+        clearedLines.forEach(line => {
+            // Remove the line and fill it with 0's
+            grid.splice(line, 1);
+            // Add a new empty row to the top
+            grid.unshift(new Array(10).fill(0));
+            
+            pieces.forEach(piece => {
+                // Check if the piece is grounded
+                // Grounded as in not the one being moved by the player
+                if (piece.grounded) {
+                    let piecePartCleared = false;
+                    let pieceWidth = piece.shape[0].length;
+                    for (let row = 0; row < piece.shape.length; row++) {
+                        // If it's in the same row as the cleared line
+                        if (piece.y + row === line) {
+                            // Remove it from the pieces shape
+                            piece.shape[row].splice(row, 1);
+                            piecePartCleared = true;
+                            piece.shape.unshift(new Array(pieceWidth).fill(0));
+                            break;
+                        }
+                    }
+                    if (!piecePartCleared && piece.y + piece.shape.length < line) {
+                        piece.y++;
+                    }
+                }
+            });
+        });
+        
+
+        updateGrid();
     }
 
+    function isRowFull(row: number[]): boolean {
+        let isFull = row.every(cell => {
+            if (cell===1) 
 
+            return cell === 1
+        });
+
+        return isFull
+    }
 
     // Allows you to lighten or darken a color
     function adjust(color: string, amount: number) {

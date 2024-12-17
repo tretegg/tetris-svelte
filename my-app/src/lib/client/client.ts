@@ -1,7 +1,24 @@
 import { io } from 'socket.io-client'
 import type { Socket } from "socket.io-client"
 
-export type Events = "DEBUG"
+export type Events = "DEBUG" | "CLIENT_INIT"
+
+export type Shape = number[][];
+
+export interface Piece {
+    x: number,
+    y: number,
+    color: string
+    shape: Shape
+    grounded: boolean
+}
+
+interface Player {
+    grid: number[][]
+    score: number,
+    nextPiece: Piece,
+    currentPiece: Piece 
+}
 
 type eventHandler = ((socket: Socket, ...data: any | undefined) => void)
 
@@ -10,7 +27,8 @@ const Events: {[eventName in Events]: eventHandler[]} = {
         (_socket: Socket, ...data: any) => {
             console.log(...data)
         }
-    ]
+    ],
+    "CLIENT_INIT": []
 }
 
 
@@ -35,7 +53,7 @@ export class TetrisClient {
         Object.entries(Events).forEach((event: [string, unknown])=>{
             for (const callback of event[1] as eventHandler[]) {
                 this.socket.on(event[0], (...data: any|undefined)=>{
-                    callback(this.socket, ...data)
+                    callback.bind(this)(this.socket, ...data)
                 })
             }
         })
