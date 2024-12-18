@@ -82,13 +82,18 @@
 
         setInterval(draw, 1000 / 60);
         setInterval(lower, 1000 / speed);
-        // setInterval(table, 1000)
+        setInterval(log, 1000)
 
         client = new TetrisClient()
     });
 
-    function table () {
-        console.table(grid)
+    function log () {
+        pieces.forEach(element => {
+            if (!element.grounded) {
+                console.log(element)
+            }
+            
+        });
     }
 
     function draw() {
