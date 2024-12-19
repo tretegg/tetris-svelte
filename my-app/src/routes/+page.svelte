@@ -186,7 +186,7 @@
                         // If it's in the same row as the cleared line
                         if (piece.y + row === line) {
                             // Remove it from the pieces shape
-                            piece.shape[row].splice(row, 1);
+                            piece.shape.splice(row, 1);
                             piecePartCleared = true;
                             piece.shape.unshift(new Array(pieceWidth).fill(0));
                             break;
@@ -220,14 +220,9 @@
     }
 
     function isRowFull(row: number[]): boolean {
-        let isFull = row.every(cell => {
-            if (cell===1) 
-
-            return cell === 1
-        });
-
-        return isFull
+        return row.every(cell => cell === 1);
     }
+
 
     // Allows you to lighten or darken a color
     function adjust(color: string, amount: number) {
