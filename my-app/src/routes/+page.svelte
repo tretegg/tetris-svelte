@@ -82,7 +82,7 @@
 
         setInterval(draw, 1000 / 60);
         setInterval(lower, 1000 / speed);
-        setInterval(log, 1000)
+        // setInterval(log, 1000)
 
         client = new TetrisClient()
     });
@@ -192,7 +192,7 @@
                             break;
                         }
                     }
-                    if (!piecePartCleared && piece.y + piece.shape.length < line) {
+                    if (!piecePartCleared && piece.y + getLowestPieceY(piece) < line) {
                         piece.y++;
                     }
                 }
@@ -201,6 +201,22 @@
         
 
         updateGrid();
+    }
+
+    function getLowestPieceY(piece: Piece): number {
+        //Bottom y value
+        let bottomY = 0;
+        for (let row = 0; row < piece.shape.length; row++) {
+            for (let col = 0; col < piece.shape[row].length; col++) {
+                const cell = piece.shape[row][col];
+                if (cell === 1) {
+                    bottomY = Math.max(bottomY, row);
+                }
+            }
+        }
+        bottomY += piece.y;
+
+        return bottomY
     }
 
     function isRowFull(row: number[]): boolean {
