@@ -189,6 +189,7 @@
                             piece.shape.splice(row, 1);
                             piecePartCleared = true;
                             piece.shape.unshift(new Array(pieceWidth).fill(0));
+                            console.log("Changed Piece: ", piece)
                             break;
                         }
                     }
