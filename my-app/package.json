@@ -1,6 +1,6 @@
 {
-	"name": "my-app",
-	"version": "0.0.1",
+	"name": "schmunk-tetris",
+	"version": "0.1",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",

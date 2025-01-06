@@ -5,9 +5,12 @@
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
     const CELLSIZE = 40;
+    let score = 0;
+    let level = 1;
 
     const SHAPES: Shape[] = [
         [
+            [0, 0, 0],
             [1, 1, 1],
             [0, 1, 0]
         ],
@@ -176,32 +179,60 @@
             // Add a new empty row to the top
             grid.unshift(new Array(10).fill(0));
             
-            pieces.forEach(piece => {
+            for(const piece of pieces) {
                 // Check if the piece is grounded
-                // Grounded as in not the one being moved by the player
                 if (piece.grounded) {
                     let piecePartCleared = false;
                     let pieceWidth = piece.shape[0].length;
+                    
+                    // For each row of the piece
                     for (let row = 0; row < piece.shape.length; row++) {
                         // If it's in the same row as the cleared line
-                        if (piece.y + row === line) {
+                        if ((piece.y + row) === line) {
+                            // this is actually useful to seperate the console.table logs
+                            getGerby()
+
+                            // dont edit anythign rn
                             // Remove it from the pieces shape
+                            console.table(piece.shape)
                             piece.shape.splice(row, 1);
+                            console.table(piece.shape)
                             piecePartCleared = true;
+                            
+                            
+                            // Add a new empty row to the top
                             piece.shape.unshift(new Array(pieceWidth).fill(0));
-                            console.log("Changed Piece: ", piece)
+                            console.table(piece.shape)
                             break;
                         }
                     }
-                    if (!piecePartCleared && piece.y + getLowestPieceY(piece) < line) {
+                    
+                    // we automated deuterium yesterday on dyson sphere just a little fyi btw
+                    // If the piece was higher than the cleared line but had no part cleared
+                    if (!piecePartCleared && getLowestPieceY(piece) < line) {
                         piece.y++;
                     }
                 }
-            });
+            };
         });
         
+        updateScore(clearedLines.length);
 
         updateGrid();
+    }
+
+    function updateScore(clearedLines: number) {
+        if (clearedLines > 0) {
+            if (clearedLines === 1) {
+                score += 100 * level;
+            } else if (clearedLines === 2) {
+                score += 300 * level;
+            } else if (clearedLines === 3) {
+                score += 500 * level;
+            } else if (clearedLines === 4) {
+                score += 800 * level;
+            }
+        }
     }
 
     function getLowestPieceY(piece: Piece): number {
@@ -224,12 +255,10 @@
         return row.every(cell => cell === 1);
     }
 
-
     // Allows you to lighten or darken a color
     function adjust(color: string, amount: number) {
         return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
     }
-
 
     function lower() {
         pieces.forEach((element) => {
@@ -242,7 +271,6 @@
             }
         });
     }
-
 
     function drawGrid(cellSize: number) {
         ctx.save(); // Save the current state of the canvas
@@ -270,7 +298,6 @@
         ctx.restore(); // Restore the canvas state
     }
 
-
     function newPiece() {
         // Validate SHAPES and canvas dimensions
         if (!SHAPES || SHAPES.length === 0) {
@@ -294,7 +321,11 @@
             }
         }
 
-        shape = SHAPES[randomIndex];
+        // Create a deep copy of the selected shape
+        // This will ensure each piece has its own independent 
+        // shape array that won't be affected by modifications to other pieces' shapes.
+        shape = SHAPES[randomIndex].map(row => [...row]);
+        // schmunk
         availableShapes[randomIndex] = false;
 
         // Reset availableShapes if all shapes are used
@@ -369,7 +400,6 @@
             }
         });
     }
-
 
     function collision(piece: Piece, direction?: string): boolean {
         let tempPiece = {
@@ -472,7 +502,13 @@
         pieces = [];
         grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
         speed = 1;
+        score = 0;
         newPiece();
+    }
+
+
+    function getGerby() {
+        console.error("Gerb not found. we automated deuterium yesterday on dyson sphere just a little fyi btw");
     }
 </script>
 
@@ -495,12 +531,18 @@
         on:click={reset}>Start</button>
     </div>
 
-    <canvas bind:this={canvas} class="border-2 ml-2 mt-2 bg-black"></canvas>
+    <div class="w-fit h-fit relative">
+        <canvas bind:this={canvas} class="border-2 ml-2 mt-2 bg-black"></canvas>        
+        
+        <div class="absolute top-0 left-0 w-full h-full flex flex-col items-start justify-start pt-5 pl-5">
+            <p class="pixel text-white text-sm">Score: {score}</p>
+        </div>
+    </div>
+    
 </div>
 
 <style>
     .pixel {
         font-family: 'Press Start 2P', cursive;
     }
-
 </style>
