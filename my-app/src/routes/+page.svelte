@@ -1,12 +1,15 @@
 <script lang="ts">
-    import { TetrisClient, type Piece, type Shape } from "$lib/client/client";
+    import { TetrisClient, type Piece, type Shape, type nextPieces } from "$lib/client/client";
     import { onMount } from "svelte";
+    import NextPiece from "$lib/nextPiece.svelte";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
     const CELLSIZE = 40;
     let score = 0;
     let level = 1;
+
+    let nextPiece: nextPieces[] =[];
 
     const SHAPES: Shape[] = [
         [
@@ -313,34 +316,38 @@
         let randomIndex = 0;
         let shape: Shape;
 
-        // Select a random available shape
-        while (!available) {
-            randomIndex = Math.floor(Math.random() * SHAPES.length);
-            if (availableShapes[randomIndex]) {
-                available = true;
+        while (nextPiece.length <= 3) {
+            while (!available) {
+                randomIndex = Math.floor(Math.random() * SHAPES.length);
+                if (availableShapes[randomIndex]) {
+                    available = true;
+                }
             }
-        }
+            availableShapes[randomIndex] = false;
 
-        // Create a deep copy of the selected shape
-        // This will ensure each piece has its own independent 
-        // shape array that won't be affected by modifications to other pieces' shapes.
-        shape = SHAPES[randomIndex].map(row => [...row]);
-        // schmunk
-        availableShapes[randomIndex] = false;
-
-        // Reset availableShapes if all shapes are used
-        if (availableShapes.every((available) => !available)) {
-            availableShapes = Array(SHAPES.length).fill(true);
+            // Reset availableShapes if all shapes are used
+            if (availableShapes.every((available) => !available)) {
+                availableShapes = Array(SHAPES.length).fill(true);
+            }
+            // Create a deep copy of the selected shape
+            shape = SHAPES[randomIndex].map(row => [...row]);
+            nextPiece.push({
+                shape: shape,
+                color: COLORS[randomIndex],       
+            });
+            available = false;
         }
 
         // Align piece placement with grid size
         pieces.push({
-            x: Math.floor((canvas.width / CELLSIZE - shape[0].length) / 2), // Adjust for grid width
+            x: Math.floor((canvas.width / CELLSIZE - nextPiece[0].shape[0].length) / 2), // Adjust for grid width
             y: 0,
-            color: COLORS[randomIndex],
-            shape: shape,
+            color: nextPiece[0].color,
+            shape: nextPiece[0].shape,
             grounded: false
         });
+
+        nextPiece.shift();
     }
 
     function rotateClockwise(matrix: number[][]): number[][] {
@@ -500,6 +507,7 @@
     function reset() {
         // TODO: Reset the game state
         pieces = [];
+        nextPiece = [];
         grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
         speed = 1;
         score = 0;
@@ -517,29 +525,37 @@
   rel="stylesheet"
 />
 
-
 <svelte:window 
     on:keydown|preventDefault={(e) => {
         move(e.key);
     }}
 />
-<div class="flex flex-col
- w-full h-full items-center justify-center"> 
+<div class="flex flex-col w-full h-full items-center justify-center"> 
+    <!-- Title Section -->
     <div class="flex flex-col ml-2 mt-2">
         <p class="pixel text-white text-4xl mt-2">TETRIS</p>
         <button class="pixel border-black border-2 hover:scale-105 transition duration-200 rounded-md"
         on:click={reset}>Start</button>
     </div>
 
-    <div class="w-fit h-fit relative">
-        <canvas bind:this={canvas} class="border-2 ml-2 mt-2 bg-black"></canvas>        
-        
-        <div class="absolute top-0 left-0 w-full h-full flex flex-col items-start justify-start pt-5 pl-5">
-            <p class="pixel text-white text-sm">Score: {score}</p>
+    <div class="flex flex-row items-start mt-4">
+        <!-- Canvas and Score -->
+        <div class="relative w-fit h-fit">
+            <canvas bind:this={canvas} class="border-2 bg-black"></canvas>        
+            <div class="absolute top-0 left-0 w-full h-full flex flex-col items-start justify-start pt-5 pl-5">
+                <p class="pixel text-white text-sm">Score: {score}</p>
+            </div>
+        </div>
+
+        <!-- Next Piece Section -->
+        <div class="flex flex-col items-center ml-4">
+            <NextPiece pieces={nextPiece} />
         </div>
     </div>
-    
 </div>
+
+
+
 
 <style>
     .pixel {
