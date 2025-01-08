@@ -1,16 +1,17 @@
 <script lang="ts">
-    import { TetrisClient, type Piece, type Shape, type nextPieces } from "$lib/client/client";
+    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece } from "$lib/client/client";
     import { onMount } from "svelte";
     import NextPiece from "$lib/nextPiece.svelte";
+    import HeldPiece from "$lib/heldPiece.svelte";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
     const CELLSIZE = 40;
     let score = 0;
     let level = 1;
-
+    let heldTetromino: heldPiece;
     let nextPiece: nextPieces[] =[];
-
+    
     const SHAPES: Shape[] = [
         [
             [0, 0, 0],
@@ -89,8 +90,6 @@
         setInterval(draw, 1000 / 60);
         setInterval(lower, 1000 / speed);
         // setInterval(log, 1000)
-
-        client = new TetrisClient()
     });
 
     function log () {
@@ -142,6 +141,8 @@
         updateGrid();
 
         clearLines();
+
+        if (client) client.syncWithServer()
     }
 
     function updateGrid() {
@@ -160,6 +161,8 @@
                 }
             }
         });
+
+        if (client) client.updateGrid(grid)
     }
 
     function clearLines() {
@@ -402,10 +405,42 @@
                 while (!collision(element, "down")) {
                     element.y++;
                 }
+            } else if (key === "c") {
+                swapHeldPiece();
             } else {
-                return
+                return;
             }
         });
+    }
+
+    function swapHeldPiece() {
+        // Find the active (non-grounded) piece
+        const activePiece = pieces.find(element => !element.grounded);
+        if (!activePiece) return;
+
+        if (heldTetromino) {
+            // Store current piece's properties
+            const tempShape = [...activePiece.shape.map(row => [...row])];
+            const tempColor = activePiece.color;
+            
+            // Update active piece with held piece properties
+            activePiece.shape = [...heldTetromino.shape.map(row => [...row])];
+            activePiece.color = heldTetromino.color;
+            activePiece.x = Math.floor((canvas.width / CELLSIZE - activePiece.shape[0].length) / 2);
+            activePiece.y = 0;
+
+            // Update held piece with stored properties
+            heldTetromino.shape = tempShape;
+            heldTetromino.color = tempColor;
+        } else {
+            // If no held piece exists, store current piece and create new piece
+            heldTetromino = {
+                shape: [...activePiece.shape.map(row => [...row])],
+                color: activePiece.color
+            };
+            pieces = pieces.filter(p => p !== activePiece);
+            newPiece();
+        }
     }
 
     function collision(piece: Piece, direction?: string): boolean {
@@ -498,10 +533,25 @@
         } else if (bottomY >= 800 / CELLSIZE) {
             newPiece();
             piece.grounded = true;
+            
             return true;
         }
 
         return false;
+    }
+
+    function getCurrentPiece(): Piece | undefined {
+        let currentPiece: Piece;
+
+        for (const piece of pieces) {
+            if (!piece.grounded) continue
+        
+            currentPiece = piece
+        
+            break
+        }
+
+        return currentPiece!
     }
 
     function reset() {
@@ -511,9 +561,11 @@
         grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
         speed = 1;
         score = 0;
+        if (client) client.endSession();
         newPiece();
-    }
 
+        client = new TetrisClient("Player", grid, getCurrentPiece()!, nextPiece[0] as Piece)
+    }
 
     function getGerby() {
         console.error("Gerb not found. we automated deuterium yesterday on dyson sphere just a little fyi btw");
@@ -531,6 +583,8 @@
     }}
 />
 <div class="flex flex-col w-full h-full items-center justify-center"> 
+
+
     <!-- Title Section -->
     <div class="flex flex-col ml-2 mt-2">
         <p class="pixel text-white text-4xl mt-2">TETRIS</p>
@@ -539,6 +593,10 @@
     </div>
 
     <div class="flex flex-row items-start mt-4">
+        <!-- Held Piece Section -->
+        <div class="flex flex-col items-center mr-4">
+            <HeldPiece piece={heldTetromino} />
+        </div>
         <!-- Canvas and Score -->
         <div class="relative w-fit h-fit">
             <canvas bind:this={canvas} class="border-2 bg-black"></canvas>        
@@ -546,7 +604,6 @@
                 <p class="pixel text-white text-sm">Score: {score}</p>
             </div>
         </div>
-
         <!-- Next Piece Section -->
         <div class="flex flex-col items-center ml-4">
             <NextPiece pieces={nextPiece} />
@@ -554,11 +611,3 @@
     </div>
 </div>
 
-
-
-
-<style>
-    .pixel {
-        font-family: 'Press Start 2P', cursive;
-    }
-</style>

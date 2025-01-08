@@ -28,26 +28,25 @@ const MAX_NAME_LENGTH = 30
 
 const CLIENT_EVENTS = {
     "CLIENT_INIT": [
-        (this, _socket, ...data) => {
+        (instance, _socket, ...data) => {
             let initData = data[0]
 
-            console.log("wtf", this)
-            console.log(...data)
-
-            let player = this.players[_socket.id]
+            let player = instance.players[_socket.id]
 
             player.name = initData.name
             player.grid = initData.grid
             player.currentPiece = initData.currentPiece
             player.nextPieces = initData.nextPieces
 
-            this.players[_socket.id] = player
+            instance.players[_socket.id] = player
 
-            this.updatePlayers(_socket.id, player)
+            instance.updatePlayers(_socket.id, player)
+
+            console.log("New Player Joined Game: " + player.name)
         }
     ],
     "UPDATE_GRID": [
-        (_socket, ...data) => {
+        (_instance, _socket, ...data) => {
             let grid = data[0]
 
             this.players[_socket.id].grid = grid
@@ -99,17 +98,22 @@ export class TetrisServer {
         })
     }
 
-    updatePlayers(updatingPlayerID, player) {
+    updatePlayers(updatingPlayerID, newPlayerData) {
+        // let otherPlayers = this.players.filter(player => player.id != updatingPlayerID)
+
         Object.entries(this.players).forEach((player)=>{
-            let playerID = player[0]
-            let playerData = player[1]
+            if (player[0] == updatingPlayerID) return
 
-            if (updatingPlayerID == id) return
-
-            let toSend = player
+            let toSend = newPlayerData
             toSend.socket = undefined
 
-            this.io.emit("PLAYER_UPDATE", toSend)
+            if (!player[1].socket) {
+                console.error(`Player [ID ${player[0]}|${player[1].name}] has no socket!`)
+                return
+            }
+
+            console.log("Distributing Player Update to Player [ID " + player[0] + "|" + player[1].name + "]")
+            player[1].socket.emit("PLAYER_UPDATE", toSend)
         })
     }
 }

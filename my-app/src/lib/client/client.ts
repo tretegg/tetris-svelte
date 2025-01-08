@@ -11,6 +11,11 @@ export type nextPieces = {
     color: string;
 }
 
+export type heldPiece = {
+    shape: Shape;
+    color: string;
+}
+
 export interface Piece {
     x: number,
     y: number,
@@ -46,14 +51,12 @@ const Events: {[eventName in Events]: eventHandler[]} = {
     "PLAYER_UPDATE": []
 }
 
-
 export class TetrisClient {
 
     private socket: Socket
     connectionEstablish: boolean = false
     eventHooks: {[eventName in Events]: ((...data: any | undefined) => void)[]}
     clientEventHooks: {[eventName in ClientEvents]: ((...data: any | undefined) => void)[]}
-
 
     player: Player
 
@@ -100,7 +103,7 @@ export class TetrisClient {
     }
 
     /**
-     * 
+     * Hooks an event coming straight from the server
      */
     hookServerEvent(eventName: Events, callback: ((data: any | undefined) => void)) {
         if (!this.eventHooks[eventName]) this.eventHooks[eventName] = []
@@ -110,6 +113,9 @@ export class TetrisClient {
         this.socket.on(eventName, callback)
     }
 
+    /**
+     * Hooks an event that the `TetrisClient` has sent out
+     */
     hookClientEvent(eventName: ClientEvents, callback: ((data: any | undefined) => void)) {
         if (!this.clientEventHooks[eventName]) this.clientEventHooks[eventName] = []
         
@@ -118,6 +124,28 @@ export class TetrisClient {
 
     private ClientEvent(eventName: ClientEvents, data: any) {
         this.clientEventHooks[eventName].forEach(c => c(data))
+    }
+    
+    /**
+     * Ends the Socket.io connection
+     */
+    endSession() {
+        this.socket.close()
+    }
+
+    /**
+     * Update `TetrisClient`'s player data with the server.
+     */
+    syncWithServer() {
+        this.sendEvent("PLAYER_UPDATE", this.player)
+    }
+
+    updateGrid(grid: Player["grid"]) {
+        this.player.grid = grid
+    }
+
+    updateScore(score: Player["score"]) {
+        this.player.score = score
     }
 }
 
