@@ -9,11 +9,13 @@ export type Shape = number[][];
 export type nextPieces = {
     shape: Shape;
     color: string;
+    pieceID: number;
 }
 
 export type heldPiece = {
     shape: Shape;
     color: string;
+    pieceID: number;
 }
 
 export interface Piece {
@@ -22,6 +24,7 @@ export interface Piece {
     color: string
     shape: Shape
     grounded: boolean
+    pieceID: number
 }
 
 export interface Player {
@@ -32,11 +35,23 @@ export interface Player {
     currentPiece: Piece 
 }
 
+export interface PlayerUpdateData {
+    name?: string,
+    grid?: number[][],
+    score?: number,
+    nextPieces?: Piece,
+    currentPiece?: Piece
+}
+
 export interface InitData {
     name: string,
     grid: number[][],
     currentPiece: Piece,
     nextPieces: Piece
+}
+
+export interface LeavingData {
+    player: Player
 }
 
 type eventHandler = ((socket: Socket, ...data: any | undefined) => void)
@@ -130,6 +145,9 @@ export class TetrisClient {
      * Ends the Socket.io connection
      */
     endSession() {
+        this.socket.emit("LEAVING_GAME", {
+            player: this.player
+        } as LeavingData)
         this.socket.close()
     }
 
@@ -146,6 +164,7 @@ export class TetrisClient {
 
     updateScore(score: Player["score"]) {
         this.player.score = score
+        this.sendEvent("PLAYER_UPDATE", {})
     }
 }
 

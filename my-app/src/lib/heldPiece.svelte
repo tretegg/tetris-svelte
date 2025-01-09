@@ -9,11 +9,45 @@
 
     let yValues: number[] = [40, 160, 280];
 
+    const SHAPES: Shape[] = [
+        [
+            [0, 0, 0],
+            [1, 1, 1],
+            [0, 1, 0]
+        ],
+        [
+            [0, 1, 1],
+            [1, 1, 0]
+        ],
+        [
+            [1, 0, 0],
+            [1, 1, 1]
+        ],
+        [
+            [0, 0, 0, 0],
+            [1, 1, 1, 1],
+            [0, 0, 0, 0]
+        ],
+        [
+            [1, 1],
+            [1, 1]
+        ],
+        [
+            [0, 0, 1],
+            [1, 1, 1]
+        ],
+        [
+            [1, 1, 0],
+            [0, 1, 1]
+        ]
+    ];
+
     onMount(() => {
         canvas.width = 160;
         canvas.height = 160;
 
         ctx = canvas.getContext("2d")!;
+        drawGrid(CELLSIZE);
         setInterval(draw, 1000 / 60);
     })
 
@@ -46,8 +80,11 @@
     function draw() {
         let piecenum = 0
         let x = getX();
+        let y = getY();
         ctx.clearRect(0, 0, 200, 400);
         drawGrid(CELLSIZE);
+        // Reset the rotation of the piece
+        piece.shape = SHAPES[piece.pieceID];
         if (piece) {
             // For each piece in the pieces array
             piece.shape.forEach((row, rowIndex) => {
@@ -61,7 +98,7 @@
                         // Fill the rectangle (the block in the piece)
                         ctx.fillRect(
                             x + colIndex * CELLSIZE, 
-                            yValues[piecenum] + rowIndex * CELLSIZE, 
+                            yValues[piecenum] + rowIndex * CELLSIZE + y, 
                             CELLSIZE, CELLSIZE
                         );
 
@@ -72,7 +109,7 @@
                         // Draw the outline, but slightly shrink the position to apply inside the shape
                         ctx.strokeRect(
                             x + colIndex * CELLSIZE + 2,  // Slightly shift right
-                            yValues[piecenum] + rowIndex * CELLSIZE + 2,   // Slightly shift down
+                            yValues[piecenum] + rowIndex * CELLSIZE + y+ 2,   // Slightly shift down
                             CELLSIZE - 4,  // Shrink the width and height for the outline to appear inside
                             CELLSIZE - 4    // Shrink the width and height for the outline to appear inside
                         );
@@ -89,8 +126,20 @@
 
     function getX(): number {
         let x = 20;
-        // Center piece
+            if (piece.pieceID === 3) {
+                x = 0
+            } else if (piece.pieceID === 4) {
+                x = 40
+            }
         return x
+    }
+
+    function getY(): number {
+        let y = 0;
+            if (piece.pieceID === 0) {
+                y = -20
+            } 
+        return y
     }
 
 </script>

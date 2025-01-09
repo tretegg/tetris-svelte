@@ -7,14 +7,13 @@
     let ctx: CanvasRenderingContext2D;
     const CELLSIZE = 40;
 
-    let yValues: number[] = [1, 4, 7];
+    let yValues: number[] = [40, 160, 280];
 
     onMount(() => {
         canvas.width = 200;
-        canvas.height = 440;
+        canvas.height = 400;
 
         ctx = canvas.getContext("2d")!;
-        ctx.scale(CELLSIZE, CELLSIZE);
         setInterval(draw, 1000 / 60);
     })
 
@@ -49,7 +48,8 @@
         ctx.clearRect(0, 0, 200, 400);
         drawGrid(CELLSIZE);
         pieces.forEach((element) => {
-            let x = 1;
+            let x = getX(element);
+            let y = getY(element);
             // For each piece in the pieces array
             element.shape.forEach((row, rowIndex) => {
                 // For each row of the piece
@@ -61,21 +61,21 @@
                         ctx.fillStyle = element.color;
                         // Fill the rectangle (the block in the piece)
                         ctx.fillRect(
-                            x + colIndex, 
-                            yValues[piecenum] + rowIndex, 
-                            1, 1
+                            x + colIndex * CELLSIZE, 
+                            yValues[piecenum] + rowIndex * CELLSIZE + y, 
+                            CELLSIZE, CELLSIZE
                         );
 
                         // Set the outline color (adjusted) and line width for the inner outline
                         ctx.strokeStyle = adjust(element.color, -20); // Outline color adjusted
-                        ctx.lineWidth = 0.1; // Outline thickness
+                        ctx.lineWidth = 4; // Outline thickness
 
                         // Draw the outline, but slightly shrink the position to apply inside the shape
                         ctx.strokeRect(
-                            x + colIndex + 0.05,  // Slightly shift right
-                            yValues[piecenum] + rowIndex + 0.05,   // Slightly shift down
-                            1 - 0.1,  // Shrink the width and height for the outline to appear inside
-                            1 - 0.1    // Shrink the width and height for the outline to appear inside
+                            x + colIndex * CELLSIZE + 2,  // Slightly shift right
+                            yValues[piecenum] + rowIndex * CELLSIZE + y + 2,   // Slightly shift down
+                            CELLSIZE - 4,  // Shrink the width and height for the outline to appear inside
+                            CELLSIZE - 4    // Shrink the width and height for the outline to appear inside
                         );
                     }
                 });
@@ -88,6 +88,24 @@
         return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
     }
 
+    function getX(piece: nextPieces): number {
+        let x = 40;
+            if (piece.pieceID === 3) {
+                x = 20
+            } else if (piece.pieceID === 4) {
+                x = 60
+            }
+        return x
+    }
+
+    function getY(piece: nextPieces): number {
+        let y = 0;
+            if (piece.pieceID === 0) {
+                y = -40
+            } 
+        return y
+    }
+
 </script>
 
 <div class="relative w-fit h-fit">
@@ -96,3 +114,4 @@
         <p class="pixel text-white text-sm">Next:</p>
     </div>
 </div>
+<!--  -->

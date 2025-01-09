@@ -15,6 +15,11 @@
  */
 
 /**
+ * @typedef {Object} LeavingData
+ * @prop {Player} player
+ */
+
+/**
  * @typedef {Object} Player
  * @prop {string} name
  * @prop {number[][]} grid
@@ -40,16 +45,34 @@ const CLIENT_EVENTS = {
 
             instance.players[_socket.id] = player
 
-            instance.updatePlayers(_socket.id, player)
+            player.socket = undefined
+
+            instance.updateOtherPlayers(_socket.id, "PLAYER_UPDATE", player)
 
             console.log("New Player Joined Game: " + player.name)
         }
     ],
-    "UPDATE_GRID": [
-        (_instance, _socket, ...data) => {
-            let grid = data[0]
+    "UPDATE_PLAYER": [
+        (instance, socket, ...data) => {
+            let player = data[0]
 
-            this.players[_socket.id].grid = grid
+            for (const data in Object.entries(player)) {
+                // todo: check if data[0] is a valid key
+                instance.players[socket.id][data[0]] = data[1]
+            }
+
+            instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", player)
+        }
+    ],
+    "LEAVING_GAME": [
+        (instance, socket, ...data) => {
+            let leavingPlayer = instance.players[socket.id]
+
+            console.log(`Player [ID ${socket.id}|${leavingPlayer.name}] is leaving the game.`)
+
+            instance.updateOtherPlayers(socket.id, "PLAYER_LEAVING", leavingPlayer)
+
+            delete instance.players[socket.id]
         }
     ]
 }
@@ -98,22 +121,17 @@ export class TetrisServer {
         })
     }
 
-    updatePlayers(updatingPlayerID, newPlayerData) {
-        // let otherPlayers = this.players.filter(player => player.id != updatingPlayerID)
-
+    updateOtherPlayers(playerID, event, data) {
         Object.entries(this.players).forEach((player)=>{
-            if (player[0] == updatingPlayerID) return
-
-            let toSend = newPlayerData
-            toSend.socket = undefined
+            if (player[0] == playerID) return
 
             if (!player[1].socket) {
                 console.error(`Player [ID ${player[0]}|${player[1].name}] has no socket!`)
                 return
             }
 
-            console.log("Distributing Player Update to Player [ID " + player[0] + "|" + player[1].name + "]")
-            player[1].socket.emit("PLAYER_UPDATE", toSend)
+            console.log(`Distributing Update [${event}] to Player [ID  ${player[0]}|${player[1].name}]`)
+            player[1].socket.emit(event, data)
         })
     }
 }

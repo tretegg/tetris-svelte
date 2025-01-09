@@ -11,6 +11,7 @@
     let level = 1;
     let heldTetromino: heldPiece;
     let nextPiece: nextPieces[] =[];
+    let totalClears = 0;
     
     const SHAPES: Shape[] = [
         [
@@ -239,6 +240,13 @@
                 score += 800 * level;
             }
         }
+        totalClears += clearedLines
+        updateLevel();
+    }
+
+    function updateLevel() {
+        level = Math.floor(totalClears / 10) + 1; 
+        speed = level * 1.2;
     }
 
     function getLowestPieceY(piece: Piece): number {
@@ -336,7 +344,8 @@
             shape = SHAPES[randomIndex].map(row => [...row]);
             nextPiece.push({
                 shape: shape,
-                color: COLORS[randomIndex],       
+                color: COLORS[randomIndex],
+                pieceID: randomIndex       
             });
             available = false;
         }
@@ -347,7 +356,8 @@
             y: 0,
             color: nextPiece[0].color,
             shape: nextPiece[0].shape,
-            grounded: false
+            grounded: false,
+            pieceID: nextPiece[0].pieceID
         });
 
         nextPiece.shift();
@@ -422,21 +432,25 @@
             // Store current piece's properties
             const tempShape = [...activePiece.shape.map(row => [...row])];
             const tempColor = activePiece.color;
+            const tempPieceID = activePiece.pieceID;
             
             // Update active piece with held piece properties
             activePiece.shape = [...heldTetromino.shape.map(row => [...row])];
             activePiece.color = heldTetromino.color;
             activePiece.x = Math.floor((canvas.width / CELLSIZE - activePiece.shape[0].length) / 2);
             activePiece.y = 0;
+            activePiece.pieceID = heldTetromino.pieceID;
 
             // Update held piece with stored properties
             heldTetromino.shape = tempShape;
             heldTetromino.color = tempColor;
+            heldTetromino.pieceID = tempPieceID;
         } else {
             // If no held piece exists, store current piece and create new piece
             heldTetromino = {
                 shape: [...activePiece.shape.map(row => [...row])],
-                color: activePiece.color
+                color: activePiece.color,
+                pieceID: activePiece.pieceID
             };
             pieces = pieces.filter(p => p !== activePiece);
             newPiece();
@@ -602,6 +616,9 @@
             <canvas bind:this={canvas} class="border-2 bg-black"></canvas>        
             <div class="absolute top-0 left-0 w-full h-full flex flex-col items-start justify-start pt-5 pl-5">
                 <p class="pixel text-white text-sm">Score: {score}</p>
+            </div>
+            <div class="absolute top-5 left-0 w-full h-full flex flex-col items-start justify-start pt-5 pl-5">
+                <p class="pixel text-white text-sm">Level: {level}</p>
             </div>
         </div>
         <!-- Next Piece Section -->
