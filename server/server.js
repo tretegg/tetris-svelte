@@ -45,11 +45,12 @@ const CLIENT_EVENTS = {
 
             instance.players[_socket.id] = player
 
-            player.socket = undefined
-
-            instance.updateOtherPlayers(_socket.id, "PLAYER_UPDATE", player)
+            let toSend = Object.assign({}, player)
+            toSend.socket = undefined
 
             console.log("New Player Joined Game: " + player.name)
+
+            instance.updateOtherPlayers(_socket.id, "PLAYER_UPDATE", toSend)
         }
     ],
     "UPDATE_PLAYER": [
@@ -111,6 +112,8 @@ export class TetrisServer {
                 socket
             }
 
+            console.log("player joined with id:", socket.id)
+
             Object.entries(CLIENT_EVENTS).forEach((event)=>{
                 for (const unBindedCallback of event[1]) {
                     socket.on(event[0], (...data)=>{
@@ -131,6 +134,12 @@ export class TetrisServer {
             }
 
             console.log(`Distributing Update [${event}] to Player [ID  ${player[0]}|${player[1].name}]`)
+
+            if (!data) {
+                console.error("Sending data is undefined?")
+                continue
+            }
+
             player[1].socket.emit(event, data)
         })
     }

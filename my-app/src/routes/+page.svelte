@@ -65,6 +65,7 @@
     let grid: number[][] = new Array(20).fill(0).map(() => new Array(10).fill(0));
 
     let client: TetrisClient;
+    let username: string
 
     type cell = {
         x: number,
@@ -124,7 +125,7 @@
                         );
 
                         // Set the outline color (adjusted) and line width for the inner outline
-                        ctx.strokeStyle = adjust(element.color, -20); // Outline color adjusted
+                        ctx.strokeStyle = adjust(element.color, -30); // Outline color adjusted
                         ctx.lineWidth = 0.1; // Outline thickness
 
                         // Draw the outline, but slightly shrink the position to apply inside the shape
@@ -197,6 +198,7 @@
                         // If it's in the same row as the cleared line
                         if ((piece.y + row) === line) {
                             // this is actually useful to seperate the console.table logs
+                            // lmao
                             getGerby()
 
                             // dont edit anythign rn
@@ -358,6 +360,14 @@
             shape: nextPiece[0].shape,
             grounded: false,
             pieceID: nextPiece[0].pieceID
+        });
+
+        pieces.forEach(piece => {
+            if (!piece.grounded) {
+                if (collision(piece, "down")) {
+                    reset();
+                }
+            }
         });
 
         nextPiece.shift();
@@ -568,8 +578,25 @@
         return currentPiece!
     }
 
+    function validateUsername(username: string): boolean {
+        if (!username) return false
+
+        let trimmed = username.trim()
+
+        if (trimmed.length < 3) return false
+
+        if (trimmed.length > 26) return false
+        
+        return true
+    }
+
+    let canStart: boolean = false
+
+    $: canStart = validateUsername(username)
+
     function reset() {
-        // TODO: Reset the game state
+        if (!canStart) return
+
         pieces = [];
         nextPiece = [];
         grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
@@ -578,7 +605,7 @@
         if (client) client.endSession();
         newPiece();
 
-        client = new TetrisClient("Player", grid, getCurrentPiece()!, nextPiece[0] as Piece)
+        client = new TetrisClient(username.trim(), grid, getCurrentPiece()!, nextPiece[0] as Piece)
     }
 
     function getGerby() {
@@ -592,17 +619,17 @@
 />
 
 <svelte:window 
-    on:keydown|preventDefault={(e) => {
+    on:keydown={(e) => {
+        if (pieces.length > 0) e.preventDefault();
         move(e.key);
     }}
 />
 <div class="flex flex-col w-full h-full items-center justify-center"> 
 
-
     <!-- Title Section -->
     <div class="flex flex-col ml-2 mt-2">
         <p class="pixel text-white text-4xl mt-2">TETRIS</p>
-        <button class="pixel border-black border-2 hover:scale-105 transition duration-200 rounded-md"
+        <button class:blocked={!canStart} class="pixel border-white text-white border-2 active:scale-95 hover:scale-105 transition duration-500 ease-in-out rounded-md"
         on:click={reset}>Start</button>
     </div>
 
@@ -610,6 +637,7 @@
         <!-- Held Piece Section -->
         <div class="flex flex-col items-center mr-4">
             <HeldPiece piece={heldTetromino} />
+            <input bind:value={username} class="pixel bg-black border-white border-2 text-sm line-clamp-1 w-52 text-white !outline-none mt-4 pl-2" placeholder="Username" type="text">
         </div>
         <!-- Canvas and Score -->
         <div class="relative w-fit h-fit">
@@ -628,3 +656,8 @@
     </div>
 </div>
 
+<style lang="postcss">
+    .blocked {
+        @apply scale-90 border-neutral-900 text-neutral-900 ;
+    }
+</style>

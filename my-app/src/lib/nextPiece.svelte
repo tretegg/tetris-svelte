@@ -67,7 +67,7 @@
                         );
 
                         // Set the outline color (adjusted) and line width for the inner outline
-                        ctx.strokeStyle = adjust(element.color, -20); // Outline color adjusted
+                        ctx.strokeStyle = adjust(element.color, -30); // Outline color adjusted
                         ctx.lineWidth = 4; // Outline thickness
 
                         // Draw the outline, but slightly shrink the position to apply inside the shape

@@ -63,7 +63,9 @@ const Events: {[eventName in Events]: eventHandler[]} = {
         }
     ],
     "CLIENT_INIT": [],
-    "PLAYER_UPDATE": []
+    "PLAYER_UPDATE": [
+        
+    ]
 }
 
 export class TetrisClient {
@@ -72,6 +74,7 @@ export class TetrisClient {
     connectionEstablish: boolean = false
     eventHooks: {[eventName in Events]: ((...data: any | undefined) => void)[]}
     clientEventHooks: {[eventName in ClientEvents]: ((...data: any | undefined) => void)[]}
+    otherPlayers: Player[]
 
     player: Player
 
@@ -82,6 +85,8 @@ export class TetrisClient {
         // @ts-ignore
         this.clientEventHooks = {}
         
+        this.otherPlayers = []
+
         this.player = {
             name,
             grid,
@@ -142,7 +147,7 @@ export class TetrisClient {
     }
     
     /**
-     * Ends the Socket.io connection
+     * Ends the Socket.io connection and annouces it to the server
      */
     endSession() {
         this.socket.emit("LEAVING_GAME", {
@@ -158,13 +163,20 @@ export class TetrisClient {
         this.sendEvent("PLAYER_UPDATE", this.player)
     }
 
+    /**
+     * Updates the `TetrisClient`'s player grid and syncs it with the server
+     */
     updateGrid(grid: Player["grid"]) {
         this.player.grid = grid
+        this.sendEvent("PLAYER_UPDATE", {grid} as PlayerUpdateData)
     }
 
+    /**
+     * Updates the `TetrisClient`'s player score and syncs it with the server
+     */
     updateScore(score: Player["score"]) {
         this.player.score = score
-        this.sendEvent("PLAYER_UPDATE", {})
+        this.sendEvent("PLAYER_UPDATE", {score} as PlayerUpdateData)
     }
 }
 

@@ -84,6 +84,7 @@
         ctx.clearRect(0, 0, 200, 400);
         drawGrid(CELLSIZE);
         // Reset the rotation of the piece
+        if (!piece) return;
         piece.shape = SHAPES[piece.pieceID];
         if (piece) {
             // For each piece in the pieces array
@@ -103,7 +104,7 @@
                         );
 
                         // Set the outline color (adjusted) and line width for the inner outline
-                        ctx.strokeStyle = adjust(piece.color, -20); // Outline color adjusted
+                        ctx.strokeStyle = adjust(piece.color, -30); // Outline color adjusted
                         ctx.lineWidth = 4; // Outline thickness
 
                         // Draw the outline, but slightly shrink the position to apply inside the shape
@@ -124,8 +125,9 @@
         return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
     }
 
-    function getX(): number {
+    function getX(): number {   
         let x = 20;
+        if (!piece) return x;
             if (piece.pieceID === 3) {
                 x = 0
             } else if (piece.pieceID === 4) {
@@ -136,6 +138,7 @@
 
     function getY(): number {
         let y = 0;
+        if (!piece) return y;
             if (piece.pieceID === 0) {
                 y = -20
             } 
