@@ -35,6 +35,15 @@ export interface Player {
     currentPiece: Piece 
 }
 
+export interface ServerPlayerUpdateData {
+    name: string,
+    grid: number[][],
+    score: number,
+    nextPieces: Piece,
+    currentPiece: Piece,
+    id: string
+}
+
 export interface PlayerUpdateData {
     name?: string,
     grid?: number[][],
@@ -54,17 +63,31 @@ export interface LeavingData {
     player: Player
 }
 
-type eventHandler = ((socket: Socket, ...data: any | undefined) => void)
+type eventHandler = ((client: TetrisClient, socket: Socket, ...data: any | undefined) => void)
 
 const Events: {[eventName in Events]: eventHandler[]} = {
     "DEBUG": [
-        (_socket: Socket, ...data: any) => {
+        (_client: TetrisClient, _socket: Socket, ...data: any) => {
             console.log(...data)
         }
     ],
-    "CLIENT_INIT": [],
+    "CLIENT_INIT": [(client, _socket, players: {[id: string]: Player})=>{
+        client.otherPlayers = players
+        console.log("INIT:", client.otherPlayers)
+    }],
     "PLAYER_UPDATE": [
-        
+        (client: TetrisClient, _socket: Socket, update: ServerPlayerUpdateData, ...data: any) => {
+            let playerData = update as Player
+            if (!playerData) return
+
+            const id = update.id
+            // @ts-ignore
+            playerData.id = undefined
+
+            client.otherPlayers[id] = playerData
+
+            console.log("Player Updated", client.otherPlayers)
+        }
     ]
 }
 
@@ -74,7 +97,7 @@ export class TetrisClient {
     connectionEstablish: boolean = false
     eventHooks: {[eventName in Events]: ((...data: any | undefined) => void)[]}
     clientEventHooks: {[eventName in ClientEvents]: ((...data: any | undefined) => void)[]}
-    otherPlayers: Player[]
+    otherPlayers: {[id: string]: Player}
 
     player: Player
 
@@ -85,7 +108,7 @@ export class TetrisClient {
         // @ts-ignore
         this.clientEventHooks = {}
         
-        this.otherPlayers = []
+        this.otherPlayers = {}
 
         this.player = {
             name,
@@ -102,10 +125,12 @@ export class TetrisClient {
      * Handles loading all of handlers for the server.
      */
     private connectToServer() {
+        let client = this
+
         Object.entries(Events).forEach((event: [string, unknown])=>{
             for (const callback of event[1] as eventHandler[]) {
                 this.socket.on(event[0], (...data: any|undefined)=>{
-                    callback.bind(this)(this.socket, ...data)
+                    callback(client, this.socket, ...data)
                 })
             }
         })

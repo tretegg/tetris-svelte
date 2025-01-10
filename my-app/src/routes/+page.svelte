@@ -362,14 +362,6 @@
             pieceID: nextPiece[0].pieceID
         });
 
-        pieces.forEach(piece => {
-            if (!piece.grounded) {
-                if (collision(piece, "down")) {
-                    reset();
-                }
-            }
-        });
-
         nextPiece.shift();
     }
 
@@ -503,6 +495,10 @@
                                     ) {
                                         if (direction == "down") piece.grounded = true; 
                                         if (direction == "down") newPiece();
+                                        if (piece.y == 0 && direction == "down") {
+                                            reset();
+                                            return true;
+                                        }
                                         return true;
                                     }
                                 }
@@ -599,9 +595,11 @@
 
         pieces = [];
         nextPiece = [];
+        let heldTetromino: heldPiece;
         grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
         speed = 1;
         score = 0;
+        totalClears = 0;
         if (client) client.endSession();
         newPiece();
 

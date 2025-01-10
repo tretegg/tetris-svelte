@@ -33,24 +33,27 @@ const MAX_NAME_LENGTH = 30
 
 const CLIENT_EVENTS = {
     "CLIENT_INIT": [
-        (instance, _socket, ...data) => {
+        (instance, socket, ...data) => {
             let initData = data[0]
 
-            let player = instance.players[_socket.id]
+            let player = instance.players[socket.id]
 
-            player.name = initData.name
-            player.grid = initData.grid
-            player.currentPiece = initData.currentPiece
-            player.nextPieces = initData.nextPieces
+            if (!player.name) player.name = "Player"
 
-            instance.players[_socket.id] = player
+            for (const data of Object.entries(initData)) {
+                // validate data
+                instance.players[socket.id][data[0]] = data[1];
+            }
+
+            instance.players[socket.id] = player
 
             let toSend = Object.assign({}, player)
-            toSend.socket = undefined
+            delete toSend.socket
+            toSend.id = socket.id
 
             console.log("New Player Joined Game: " + player.name)
 
-            instance.updateOtherPlayers(_socket.id, "PLAYER_UPDATE", toSend)
+            instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", toSend)
         }
     ],
     "UPDATE_PLAYER": [
@@ -62,6 +65,10 @@ const CLIENT_EVENTS = {
                 instance.players[socket.id][data[0]] = data[1]
             }
 
+            let toSend = Object.assign({}, player)
+            delete toSend.socket
+            toSend.id = socket.id
+
             instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", player)
         }
     ],
@@ -70,6 +77,12 @@ const CLIENT_EVENTS = {
             let leavingPlayer = instance.players[socket.id]
 
             console.log(`Player [ID ${socket.id}|${leavingPlayer.name}] is leaving the game.`)
+
+            let toSend = Object.assign({}, leavingPlayer)
+            delete toSend.socket
+            toSend.id = socket.id
+
+            console.log("Sending Leaving Data:", toSend)
 
             instance.updateOtherPlayers(socket.id, "PLAYER_LEAVING", leavingPlayer)
 
@@ -107,12 +120,23 @@ export class TetrisServer {
         let context = this
 
         io.on('connection', (socket) => {
+
+            let otherPlayers = []
+
+            for (const player in Object.entries(this.players)) {
+                let p = Object.assign({}, player[1])
+
+                if (p.socket) delete p.socket
+
+                otherPlayers.push(p)
+            }
+
+            socket.emit("CLIENT_INIT", otherPlayers)
+
             this.players[socket.id] = {
                 score: 0,
                 socket
             }
-
-            console.log("player joined with id:", socket.id)
 
             Object.entries(CLIENT_EVENTS).forEach((event)=>{
                 for (const unBindedCallback of event[1]) {
@@ -135,9 +159,14 @@ export class TetrisServer {
 
             console.log(`Distributing Update [${event}] to Player [ID  ${player[0]}|${player[1].name}]`)
 
-            if (!data) {
-                console.error("Sending data is undefined?")
-                continue
+            if (!data || !event || !playerID) {
+                console.error("Sending invalid data:", playerID, data, event)
+                return
+            }
+
+            if (!player[1].name) {
+                console.error("Player has no name!")
+                return
             }
 
             player[1].socket.emit(event, data)
