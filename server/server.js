@@ -69,7 +69,7 @@ const CLIENT_EVENTS = {
             delete toSend.socket
             toSend.id = socket.id
 
-            instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", player)
+            instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", toSend)
         }
     ],
     "LEAVING_GAME": [
@@ -87,7 +87,7 @@ const CLIENT_EVENTS = {
 
             console.log("Sending Leaving Data:", toSend)
 
-            instance.updateOtherPlayers(socket.id, "PLAYER_LEAVING", leavingPlayer)
+            instance.updateOtherPlayers(socket.id, "PLAYER_LEAVING", toSend)
 
             delete instance.players[socket.id]
         }
@@ -99,7 +99,6 @@ const EVENTS = {
 }
 
 export class TetrisServer {
-
     /**
      * @type {{id: string}: Player}
      */
@@ -124,14 +123,16 @@ export class TetrisServer {
 
         io.on('connection', (socket) => {
 
-            let otherPlayers = []
+            console.log("Connection Opened.")
 
-            for (const player in Object.entries(this.players)) {
+            let otherPlayers = {}
+
+            for (const player of Object.entries(this.players)) {
                 let p = Object.assign({}, player[1])
 
                 if (p.socket) delete p.socket
 
-                otherPlayers.push(p)
+                otherPlayers[player[0]] = p
             }
 
             socket.emit("CLIENT_INIT", otherPlayers)

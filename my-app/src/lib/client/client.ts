@@ -32,15 +32,15 @@ export interface Player {
     name: string
     grid: number[][]
     score: number,
-    nextPieces: Piece,
-    currentPiece: Piece 
+    nextPieces?: nextPieces[],
+    currentPiece?: Piece 
 }
 
 export interface ServerPlayerUpdateData {
     name: string,
     grid: number[][],
     score: number,
-    nextPieces: Piece,
+    nextPieces: nextPieces[],
     currentPiece: Piece,
     id: string
 }
@@ -57,7 +57,7 @@ export interface InitData {
     name: string,
     grid: number[][],
     currentPiece: Piece,
-    nextPieces: Piece
+    nextPieces: nextPieces[]
 }
 
 export interface LeavingData {
@@ -77,13 +77,14 @@ const Events: {[eventName in Events]: eventHandler[]} = {
         console.log("INIT:", client.otherPlayers)
     }],
     "PLAYER_UPDATE": [
-        (client: TetrisClient, _socket: Socket, update: ServerPlayerUpdateData, ...data: any) => {
-            let playerData = update as Player
+        (client: TetrisClient, _socket: Socket, update: ServerPlayerUpdateData, ..._data: any) => {
+            let playerData = Object.assign({}, update) as Player
+
             if (!playerData) return
 
             const id = update.id
             // @ts-ignore
-            playerData.id = undefined
+            delete playerData.id
 
             client.otherPlayers[id] = playerData
 
@@ -103,7 +104,7 @@ export class TetrisClient {
 
     player: Player
 
-    constructor(name: string, grid: number[][], currentPiece: Piece, nextPiece: Piece) {
+    constructor(name: string, grid: number[][], currentPiece: Piece, nextPieces: nextPieces[]) {
         this.socket = io()
         // @ts-ignore
         this.eventHooks = {}
@@ -117,7 +118,7 @@ export class TetrisClient {
             grid,
             score: 0,
             currentPiece,
-            nextPieces: nextPiece
+            nextPieces: nextPieces
         }
 
         this.connectToServer()
@@ -180,6 +181,7 @@ export class TetrisClient {
         this.socket.emit("LEAVING_GAME", {
             player: this.player
         } as LeavingData)
+        
         this.socket.close()
     }
 
@@ -187,13 +189,7 @@ export class TetrisClient {
      * Update `TetrisClient`'s player data with the server.
      */
     syncWithServer() {
-        if (!this.playerUpdated) {
-            console.log("[TetrisClient] Player data has not changed since last update")
-            
-            return
-        }
-
-        console.log("[TetrisClient] updating player:", this.player)
+        if (!this.playerUpdated) return
         
         this.sendEvent("PLAYER_UPDATE", this.player as PlayerUpdateData)
         this.playerUpdated = false
@@ -215,8 +211,19 @@ export class TetrisClient {
         this.playerUpdated = true
     }
 
+    /**
+     * Updates the `TetrisClient`'s player current piece
+     */
     updateCurrentPiece(piece: Player["currentPiece"]) {
         this.player.currentPiece = piece
+        this.playerUpdated = true
+    }
+
+    /**
+     * Updates the `TetrisClient`'s player next pieces
+     */
+    updateNextPieces(pieces: Player["nextPieces"]) {
+        this.player.nextPieces = pieces
         this.playerUpdated = true
     }
 }

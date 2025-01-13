@@ -150,7 +150,6 @@
     function updateGrid() {
         grid = new Array(20).fill(0).map(() => new Array(10).fill(0));
         for (const piece of pieces) {
-            console.log(piece.grounded)
             if (!piece.grounded) return;
 
             for (let row = 0; row < piece.shape.length; row++) {
@@ -605,7 +604,7 @@
         if (client) client.endSession();
         newPiece();
 
-        client = new TetrisClient(username.trim(), grid, getCurrentPiece()!, nextPiece[0] as Piece)
+        client = new TetrisClient(username.trim(), grid, getCurrentPiece()!, nextPiece)
     }
 
     function getGerby() {
