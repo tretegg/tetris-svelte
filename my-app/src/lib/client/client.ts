@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client'
 import type { Socket } from "socket.io-client"
+import _ from "lodash";
 
 export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE"
 export type ClientEvents = "PLAYERS_UPDATE"
@@ -94,6 +95,7 @@ const Events: {[eventName in Events]: eventHandler[]} = {
 export class TetrisClient {
 
     private socket: Socket
+    private playerUpdated: boolean = false
     connectionEstablish: boolean = false
     eventHooks: {[eventName in Events]: ((...data: any | undefined) => void)[]}
     clientEventHooks: {[eventName in ClientEvents]: ((...data: any | undefined) => void)[]}
@@ -170,7 +172,7 @@ export class TetrisClient {
     private ClientEvent(eventName: ClientEvents, data: any) {
         this.clientEventHooks[eventName].forEach(c => c(data))
     }
-    
+
     /**
      * Ends the Socket.io connection and annouces it to the server
      */
@@ -185,23 +187,37 @@ export class TetrisClient {
      * Update `TetrisClient`'s player data with the server.
      */
     syncWithServer() {
-        this.sendEvent("PLAYER_UPDATE", this.player)
+        if (!this.playerUpdated) {
+            console.log("[TetrisClient] Player data has not changed since last update")
+            
+            return
+        }
+
+        console.log("[TetrisClient] updating player:", this.player)
+        
+        this.sendEvent("PLAYER_UPDATE", this.player as PlayerUpdateData)
+        this.playerUpdated = false
     }
 
     /**
-     * Updates the `TetrisClient`'s player grid and syncs it with the server
+     * Updates the `TetrisClient`'s player grid
      */
     updateGrid(grid: Player["grid"]) {
         this.player.grid = grid
-        this.sendEvent("PLAYER_UPDATE", {grid} as PlayerUpdateData)
+        this.playerUpdated = true
     }
 
     /**
-     * Updates the `TetrisClient`'s player score and syncs it with the server
+     * Updates the `TetrisClient`'s player score
      */
     updateScore(score: Player["score"]) {
         this.player.score = score
-        this.sendEvent("PLAYER_UPDATE", {score} as PlayerUpdateData)
+        this.playerUpdated = true
+    }
+
+    updateCurrentPiece(piece: Player["currentPiece"]) {
+        this.player.currentPiece = piece
+        this.playerUpdated = true
     }
 }
 

@@ -56,7 +56,7 @@ const CLIENT_EVENTS = {
             instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", toSend)
         }
     ],
-    "UPDATE_PLAYER": [
+    "PLAYER_UPDATE": [
         (instance, socket, ...data) => {
             let player = data[0]
 
@@ -76,6 +76,9 @@ const CLIENT_EVENTS = {
         (instance, socket, ...data) => {
             let leavingPlayer = instance.players[socket.id]
 
+            // if the player's socket has closed before its even sent a init to the server dip outta there
+            if (!leavingPlayer) return
+    
             console.log(`Player [ID ${socket.id}|${leavingPlayer.name}] is leaving the game.`)
 
             let toSend = Object.assign({}, leavingPlayer)
@@ -152,21 +155,26 @@ export class TetrisServer {
         Object.entries(this.players).forEach((player)=>{
             if (player[0] == playerID) return
 
+            console.log(`Distributing Update [${event}] to Player [ID  ${player[0]}|${player[1].name}]`)
+
             if (!player[1].socket) {
                 console.error(`Player [ID ${player[0]}|${player[1].name}] has no socket!`)
                 return
             }
 
-            console.log(`Distributing Update [${event}] to Player [ID  ${player[0]}|${player[1].name}]`)
-
             if (!data || !event || !playerID) {
-                console.error("Sending invalid data:", playerID, data, event)
+                console.error(`Sending invalid data to player [${player[0]}|${player[1].name}] while sending [${event}] from player [${playerID}]:`, data)
                 return
             }
 
             if (!player[1].name) {
-                console.error("Player has no name!")
+                console.error(`Player [${player[0]}] has no name!`)
                 return
+            }
+
+            if (data["socket"]) {
+                console.warn(`Socket detected on data while sending [${event}]!`, data)
+                delete data["socket"]
             }
 
             player[1].socket.emit(event, data)

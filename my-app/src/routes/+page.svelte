@@ -149,8 +149,10 @@
 
     function updateGrid() {
         grid = new Array(20).fill(0).map(() => new Array(10).fill(0));
-        pieces.forEach(piece => {
+        for (const piece of pieces) {
+            console.log(piece.grounded)
             if (!piece.grounded) return;
+
             for (let row = 0; row < piece.shape.length; row++) {
                 for (let col = 0; col < piece.shape[row].length; col++) {
                     const cell = piece.shape[row][col];
@@ -162,7 +164,7 @@
                     }
                 }
             }
-        });
+        };
 
         if (client) client.updateGrid(grid)
     }
@@ -620,6 +622,10 @@
     on:keydown={(e) => {
         if (pieces.length > 0) e.preventDefault();
         move(e.key);
+    }}
+
+    on:beforeunload={(e) => {
+        if (client) client.endSession()
     }}
 />
 <div class="flex flex-col w-full h-full items-center justify-center"> 
