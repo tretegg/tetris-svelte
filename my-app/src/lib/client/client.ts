@@ -3,7 +3,7 @@ import type { Socket } from "socket.io-client"
 import _ from "lodash";
 
 export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE"
-export type ClientEvents = "PLAYERS_UPDATE"
+export type ClientEvents = "PLAYER_UPDATE"
 
 export type Shape = number[][];
 
@@ -88,14 +88,16 @@ const Events: {[eventName in Events]: eventHandler[]} = {
 
             client.otherPlayers[id] = playerData
 
-            console.log("Player Updated", client.otherPlayers)
+            console.log(`Player ${playerData.name} Updated. Score:`, playerData.score)
+
+            client.ClientEvent("PLAYER_UPDATE", client.otherPlayers)
         }
     ]
 }
 
 export class TetrisClient {
 
-    private socket: Socket
+    private socket?: Socket
     private playerUpdated: boolean = false
     connectionEstablish: boolean = false
     eventHooks: {[eventName in Events]: ((...data: any | undefined) => void)[]}
@@ -105,7 +107,6 @@ export class TetrisClient {
     player: Player
 
     constructor(name: string, grid: number[][], currentPiece: Piece, nextPieces: nextPieces[]) {
-        this.socket = io()
         // @ts-ignore
         this.eventHooks = {}
         // @ts-ignore
@@ -129,16 +130,21 @@ export class TetrisClient {
      */
     private connectToServer() {
         let client = this
+        this.socket = io(window.location.origin, {query: {name: this.player.name}})
 
         Object.entries(Events).forEach((event: [string, unknown])=>{
             for (const callback of event[1] as eventHandler[]) {
-                this.socket.on(event[0], (...data: any|undefined)=>{
-                    callback(client, this.socket, ...data)
+                this.socket!.on(event[0], (...data: any|undefined)=>{
+                    callback(client, this.socket!, ...data)
                 })
             }
         })
 
         this.socket.emit("CLIENT_INIT", this.player as InitData)
+
+        this.socket.on("disconnect", () => {
+            this.endSession()
+        })
 
         this.connectionEstablish = true
     }
@@ -147,6 +153,11 @@ export class TetrisClient {
      * Sends an event to the server
      */
     sendEvent(eventName: Events, data: any) {
+        if (!this.socket) {
+            console.warn(`[TetrisClient] Trying to send event ${eventName} with ${data} without socket!`)
+            return
+        }
+
         this.socket.emit(eventName, data)
     }
 
@@ -154,6 +165,11 @@ export class TetrisClient {
      * Hooks an event coming straight from the server
      */
     hookServerEvent(eventName: Events, callback: ((data: any | undefined) => void)) {
+        if (!this.socket) {
+            console.warn(`Cannot hook server event ${eventName} without socket!`)
+            return
+        }
+
         if (!this.eventHooks[eventName]) this.eventHooks[eventName] = []
         
         this.eventHooks[eventName].push(callback)
@@ -170,7 +186,7 @@ export class TetrisClient {
         this.clientEventHooks[eventName].push(callback)
     }
 
-    private ClientEvent(eventName: ClientEvents, data: any) {
+    ClientEvent(eventName: ClientEvents, data: any) {
         this.clientEventHooks[eventName].forEach(c => c(data))
     }
 
@@ -178,11 +194,20 @@ export class TetrisClient {
      * Ends the Socket.io connection and annouces it to the server
      */
     endSession() {
+        if (!this.socket) {
+            console.warn("Trying to end session that doesn't have socket!!")
+            return
+        }
+
         this.socket.emit("LEAVING_GAME", {
             player: this.player
         } as LeavingData)
         
         this.socket.close()
+
+        delete this.socket
+
+        this.connectionEstablish = false
     }
 
     /**
@@ -190,7 +215,11 @@ export class TetrisClient {
      */
     syncWithServer() {
         if (!this.playerUpdated) return
-        
+        if (!this.connectionEstablish) return
+        if (!this.socket) return
+
+        console.log("Syncing...")
+
         this.sendEvent("PLAYER_UPDATE", this.player as PlayerUpdateData)
         this.playerUpdated = false
     }

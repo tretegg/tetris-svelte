@@ -156,7 +156,7 @@ export class TetrisServer {
         Object.entries(this.players).forEach((player)=>{
             if (player[0] == playerID) return
 
-            console.log(`Distributing Update [${event}] to Player [ID  ${player[0]}|${player[1].name}]`)
+            // console.log(`Distributing Update [${event}] to Player [ID ${player[0]}|${player[1].name}]`)
 
             if (!player[1].socket) {
                 console.error(`Player [ID ${player[0]}|${player[1].name}] has no socket!`)

@@ -1,17 +1,20 @@
 <script lang="ts">
-    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece } from "$lib/client/client";
+    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece, type Player } from "$lib/client/client";
     import { onMount } from "svelte";
     import NextPiece from "$lib/nextPiece.svelte";
     import HeldPiece from "$lib/heldPiece.svelte";
+    import OtherPlayers from "$lib/board.svelte";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
     const CELLSIZE = 40;
     let score = 0;
     let level = 1;
-    let heldTetromino: heldPiece;
+    let heldTetromino: heldPiece | undefined;
     let nextPiece: nextPieces[] =[];
     let totalClears = 0;
+
+    let otherPlayers: {[id: string]: Player} = {}
     
     const SHAPES: Shape[] = [
         [
@@ -143,14 +146,12 @@
         updateGrid();
 
         clearLines();
-
-        if (client) client.syncWithServer()
     }
 
     function updateGrid() {
         grid = new Array(20).fill(0).map(() => new Array(10).fill(0));
         for (const piece of pieces) {
-            if (!piece.grounded) return;
+            if (!piece.grounded) continue;
 
             for (let row = 0; row < piece.shape.length; row++) {
                 for (let col = 0; col < piece.shape[row].length; col++) {
@@ -164,7 +165,6 @@
                 }
             }
         };
-
         if (client) client.updateGrid(grid)
     }
 
@@ -175,7 +175,7 @@
         // Check for full rows and mark them for clearing
         for (let row = 0; row < grid.length; row++) {
             if (isRowFull(grid[row])) {
-                console.log("row full", row)
+                // console.log("row full", row)
                 clearedLines.push(row);
             }
         }
@@ -200,19 +200,19 @@
                         if ((piece.y + row) === line) {
                             // this is actually useful to seperate the console.table logs
                             // lmao
-                            getGerby()
+                            // getGerby()
 
                             // dont edit anythign rn
                             // Remove it from the pieces shape
-                            console.table(piece.shape)
+                            // console.table(piece.shape)
                             piece.shape.splice(row, 1);
-                            console.table(piece.shape)
+                            // console.table(piece.shape)
                             piecePartCleared = true;
                             
                             
                             // Add a new empty row to the top
                             piece.shape.unshift(new Array(pieceWidth).fill(0));
-                            console.table(piece.shape)
+                            // console.table(piece.shape)
                             break;
                         }
                     }
@@ -245,10 +245,12 @@
         }
         totalClears += clearedLines
         updateLevel();
+
+        if (client) client.updateScore(score)
     }
 
     function updateLevel() {
-        level = Math.floor(totalClears / 10) + 1; 
+        level = Math.floor(totalClears / 10) + 1;
         speed = level * 1.2;
     }
 
@@ -287,6 +289,8 @@
                 }
             }
         });
+
+        if (client) client.syncWithServer()
     }
 
     function drawGrid(cellSize: number) {
@@ -321,6 +325,7 @@
             console.error("SHAPES array is empty or not defined");
             return;
         }
+
         if (!canvas || !canvas.width) {
             console.error("Canvas is not properly initialized");
             return;
@@ -364,6 +369,24 @@
         });
 
         nextPiece.shift();
+
+        if (client) {
+            client.updateNextPieces(nextPiece)
+            
+            let currentPiece: Piece | undefined
+
+            for (const piece of pieces) {
+                if (!piece.grounded) {
+                    currentPiece = piece
+                    break
+                }
+            }
+
+            if (!currentPiece) return
+
+            client.updateCurrentPiece(currentPiece)
+
+        }
     }
 
     function rotateClockwise(matrix: number[][]): number[][] {
@@ -497,7 +520,10 @@
                                         if (direction == "down") piece.grounded = true; 
                                         if (direction == "down") newPiece();
                                         if (piece.y == 0 && direction == "down") {
+                                            if (client) client.endSession()
+                                            
                                             reset();
+
                                             return true;
                                         }
                                         return true;
@@ -596,7 +622,7 @@
 
         pieces = [];
         nextPiece = [];
-        let heldTetromino: heldPiece;
+        heldTetromino = undefined;
         grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
         speed = 1;
         score = 0;
@@ -605,6 +631,9 @@
         newPiece();
 
         client = new TetrisClient(username.trim(), grid, getCurrentPiece()!, nextPiece)
+        client.hookClientEvent("PLAYER_UPDATE", (players: {[id:string]:Player}) => {
+            otherPlayers = players
+        })
     }
 
     function getGerby() {
@@ -624,6 +653,7 @@
     }}
 
     on:beforeunload={(e) => {
+        console.log("client before unload:", client)
         if (client) client.endSession()
     }}
 />
@@ -658,6 +688,14 @@
         </div>
     </div>
 </div>
+
+{#if otherPlayers}
+    <div class="w-full h-full absolute top-0 left-0 pointer-events-none">
+        {#each Object.entries(otherPlayers) as player}
+            <OtherPlayers player={player[1]} />
+        {/each}
+    </div>
+{/if}
 
 <style lang="postcss">
     .blocked {
