@@ -4,6 +4,7 @@
     import NextPiece from "$lib/nextPiece.svelte";
     import HeldPiece from "$lib/heldPiece.svelte";
     import OtherPlayers from "$lib/board.svelte";
+    import GameModeSelector from "$lib/gameModeSelector.svelte";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
@@ -613,9 +614,13 @@
         return true
     }
 
-    let canStart: boolean = false
+    export let canStart: boolean = false
 
     $: canStart = validateUsername(username)
+
+    let gameOpened: boolean = false
+    let gameOver: boolean = false
+    let gameMode: "SURVIVAL" | "DEATHMATCH"
 
     function reset() {
         if (!canStart) return
@@ -627,6 +632,7 @@
         speed = 1;
         score = 0;
         totalClears = 0;
+
         if (client) client.endSession();
         newPiece();
 
@@ -634,10 +640,17 @@
         client.hookClientEvent("PLAYER_UPDATE", (players: {[id:string]:Player}) => {
             otherPlayers = players
         })
+
+        gameOver = false
     }
 
     function getGerby() {
         console.error("Gerb not found. we automated deuterium yesterday on dyson sphere just a little fyi btw");
+    }
+
+    function start() {
+        gameOpened = true
+        reset()
     }
 </script>
 
@@ -657,28 +670,50 @@
         if (client) client.endSession()
     }}
 />
-<div class="flex flex-col w-full h-full items-center justify-center"> 
+<div class="flex flex-col relative w-full h-full items-center justify-center"> 
+
+    {#if !gameOpened}
+        <div class="absolute w-full h-full top-0 left-0 bg-[rgb(51_51_51)] z-10 flex flex-col items-center justify-center">
+            <div>
+                <h1 class="text-white pixel text-5xl">Tetris</h1>
+
+                <GameModeSelector bind:gameMode/>
+                <div class="flex items-center justify-center">
+                    <button on:click={start}>
+                        <p class:blocked={!canStart} class="w-fit border py-1 px-2 mt-2 bg-black pixel text-white text-sm text-center active:scale-95 hover:scale-105 transition duration-500">
+                            Start
+                        </p>
+                    </button>
+                </div>
+                <div class="flex flex-col items-center justify-center">
+                    <input bind:value={username} class="pixel bg-black border-white border text-sm line-clamp-1 w-52 text-white !outline-none mt-2 pl-2" placeholder="Username" type="text">
+                </div>
+            </div>
+        </div>
+    {/if}
 
     <!-- Title Section -->
     <div class="flex flex-col ml-2 mt-2">
         <p class="pixel text-white text-4xl mt-2">TETRIS</p>
-        <button class:blocked={!canStart} class="pixel border-white text-white border-2 active:scale-95 hover:scale-105 transition duration-500 ease-in-out rounded-md"
-        on:click={reset}>Start</button>
+        <!-- <button class:blocked={!canStart} class="pixel border-white text-white border-2 active:scale-95 hover:scale-105 transition duration-500 ease-in-out rounded-md"
+        on:click={reset}>Start</button> -->
     </div>
 
     <div class="flex flex-row items-start mt-4">
         <!-- Held Piece Section -->
         <div class="flex flex-col items-center mr-4">
             <HeldPiece piece={heldTetromino} />
-            <input bind:value={username} class="pixel bg-black border-white border-2 text-sm line-clamp-1 w-52 text-white !outline-none mt-4 pl-2" placeholder="Username" type="text">
         </div>
         <!-- Canvas and Score -->
         <div class="relative w-fit h-fit">
-            <canvas bind:this={canvas} class="border-2 bg-black"></canvas>        
+            <canvas bind:this={canvas} class="border-2 bg-black"></canvas>
             <div class="absolute top-0 left-0 w-full h-full flex flex-col items-start justify-start pt-5 pl-5">
+                <p class="pixel text-white text-sm">{username}</p>
+            </div>        
+            <div class="absolute top-5 left-0 w-full h-full flex flex-col items-start justify-start pt-5 pl-5">
                 <p class="pixel text-white text-sm">Score: {score}</p>
             </div>
-            <div class="absolute top-5 left-0 w-full h-full flex flex-col items-start justify-start pt-5 pl-5">
+            <div class="absolute top-10 left-0 w-full h-full flex flex-col items-start justify-start pt-5 pl-5">
                 <p class="pixel text-white text-sm">Level: {level}</p>
             </div>
         </div>

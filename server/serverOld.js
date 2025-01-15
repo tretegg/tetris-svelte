@@ -34,10 +34,7 @@
  * @prop {string} name
  * @prop {number} maxPlayers
  * @prop {number} currentPlayers
- * @prop {string} id
  */
-
-// {[gamemode:string]: {[id:string]: Room}}
 
 const MAX_NAME_LENGTH = 30
 
@@ -82,7 +79,7 @@ const CLIENT_EVENTS = {
             instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", toSend)
         }
     ],
-    "LEAVE_ROOM": [
+    "LEAVING_GAME": [
         (instance, socket, ...data) => {
             let leavingPlayer = instance.players[socket.id]
 
@@ -101,25 +98,6 @@ const CLIENT_EVENTS = {
 
             delete instance.players[socket.id]
         }
-    ],
-    "JOIN_ROOM": [
-        // room is the id of the room
-        (instance, socket, {gamemode, room: roomID}) => {
-            let roomData = instance.rooms[gamemode][roomID]
-
-            if (roomData.currentPlayers >= roomData.maxPlayers) {
-                socket.emit("GAME_FULL", {gamemode, room: roomID})
-                return
-            }
-
-            socket.leave("browsing")
-            socket.join(`room-${roomID}`)
-
-            roomData.currentPlayers += 1
-            instance.rooms[gamemode][roomID] = roomData
-
-            instance.io.to("browsing").emit("ROOMS", instance.rooms)
-        } 
     ]
 }
 
@@ -127,7 +105,7 @@ const EVENTS = {
     "REQUEST_CREATE_ROOM": [
         (instance, io, ...data) => {
 
-        }
+        }    
     ]
 }
 
@@ -165,9 +143,22 @@ export class TetrisServer {
 
             console.log("Connection Opened.")
 
-            socket.join("browsing")
+            let otherPlayers = {}
 
-            socket.emit("ROOMS", this.rooms)
+            for (const player of Object.entries(this.players)) {
+                let p = Object.assign({}, player[1])
+
+                if (p.socket) delete p.socket
+
+                otherPlayers[player[0]] = p
+            }
+
+            socket.emit("CLIENT_INIT", otherPlayers)
+
+            this.players[socket.id] = {
+                score: 0,
+                socket
+            }
 
             Object.entries(CLIENT_EVENTS).forEach((event)=>{
                 for (const unBindedCallback of event[1]) {
@@ -180,24 +171,32 @@ export class TetrisServer {
     }
 
     updateOtherPlayers(playerID, event, data) {
-        let room = this.playerRoomMap[playerID]
+        Object.entries(this.players).forEach((player)=>{
+            if (player[0] == playerID) return
 
-        if (!room) {
-            console.warn("Room undefined!")
-            return
-        }
-        
-        let players = this.io.sockets.clients(room)
+            // console.log(`Distributing Update [${event}] to Player [ID ${player[0]}|${player[1].name}]`)
 
-        for (const playerSocket in players) {
-            if (playerSocket.id == playerID) return
+            if (!player[1].socket) {
+                console.error(`Player [ID ${player[0]}|${player[1].name}] has no socket!`)
+                return
+            }
+
+            if (!data || !event || !playerID) {
+                console.error(`Sending invalid data to player [${player[0]}|${player[1].name}] while sending [${event}] from player [${playerID}]:`, data)
+                return
+            }
+
+            if (!player[1].name) {
+                console.error(`Player [${player[0]}] has no name!`)
+                return
+            }
 
             if (data["socket"]) {
                 console.warn(`Socket detected on data while sending [${event}]!`, data)
                 delete data["socket"]
             }
 
-            playerSocket.socket.emit(event, data)
-        }
+            player[1].socket.emit(event, data)
+        })
     }
 }

@@ -2,7 +2,7 @@ import { io } from 'socket.io-client'
 import type { Socket } from "socket.io-client"
 import _ from "lodash";
 
-export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE"
+export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING"
 export type ClientEvents = "PLAYER_UPDATE"
 
 export type Shape = number[][];
@@ -91,6 +91,12 @@ const Events: {[eventName in Events]: eventHandler[]} = {
             console.log(`Player ${playerData.name} Updated. Score:`, playerData.score)
 
             client.ClientEvent("PLAYER_UPDATE", client.otherPlayers)
+        }
+    ],
+    "PLAYER_LEAVING": [
+        (client, _socket, player) => {
+            console.log(`Player [ID ${player.id}|${player.name}] left the game.`)
+            delete client.otherPlayers[player.id]
         }
     ]
 }

@@ -1,6 +1,8 @@
+
 <script lang="ts">
     import { onMount } from "svelte";
     import type { Player } from "./client/client";
+    import OtherNext from "./otherNext.svelte";
 
     let CELLSIZE = 20;
 
@@ -100,10 +102,14 @@
 
 </script>
 
-<div class="w-fit h-fit">
-    <div class="w-full h-full absolute top-0 left-0 pixel">
+<div class="w-fit h-fit relative p-2">
+    <div class="w-full h-full absolute top-1 left-2 pixel text-white text-xs pl-2 pt-2">
+        <p>{player.name}</p>
+    </div>
+    <div class="w-full h-full absolute top-4 left-2 pixel text-white text-xs pl-2 pt-2">
         <p>Score: {player.score}</p>
     </div>
-
+    
     <canvas bind:this={canvas} class="border-2 bg-black"></canvas>    
+    <OtherNext pieces={player.nextPieces} />
 </div>
