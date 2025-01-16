@@ -2,8 +2,8 @@ import { io } from 'socket.io-client'
 import type { Socket } from "socket.io-client"
 import _ from "lodash";
 
-export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING"
-export type ClientEvents = "PLAYER_UPDATE"
+export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING" | "ROOMS"
+export type ClientEvents = "PLAYER_UPDATE" | "ROOMS"
 
 export type Shape = number[][];
 
@@ -11,6 +11,16 @@ export type nextPieces = {
     shape: Shape;
     color: string;
     pieceID: number;
+}
+
+export type keybinds = {
+    left: string;
+    right: string;
+    softDrop: string;
+    hardDrop: string;
+    rotateClockwise: string;
+    rotateCounterClockwise: string;
+    hold: string;
 }
 
 export type heldPiece = {
@@ -28,12 +38,24 @@ export interface Piece {
     pieceID: number
 }
 
+export interface RoomIdentifier {
+    id: string,
+    gamemode: string
+}
+
+export interface Room {
+    name: string;
+    maxPlayers: number;
+    currentPlayers: number;
+    id: string;
+}
+
 export interface Player {
-    name: string
-    grid: number[][]
-    score: number,
+    name?: string
+    grid?: number[][]
+    score?: number,
     nextPieces?: nextPieces[],
-    currentPiece?: Piece 
+    currentPiece?: Piece, 
 }
 
 export interface ServerPlayerUpdateData {
@@ -64,7 +86,11 @@ export interface LeavingData {
     player: Player
 }
 
-type eventHandler = ((client: TetrisClient, socket: Socket, ...data: any | undefined) => void)
+export type Rooms = {[gamemode: string]: {[id:string]: Room}}
+
+export type eventHandler = ((client: TetrisClient, socket: Socket, ...data: any | undefined) => void)
+
+export type GameModes = "SURVIVAL" | "DEATHMATCH"
 
 const Events: {[eventName in Events]: eventHandler[]} = {
     "DEBUG": [
@@ -98,21 +124,38 @@ const Events: {[eventName in Events]: eventHandler[]} = {
             console.log(`Player [ID ${player.id}|${player.name}] left the game.`)
             delete client.otherPlayers[player.id]
         }
+    ],
+    "ROOMS": [
+        (client, _socket, rooms: Rooms) => {
+            client.rooms = rooms
+            client.ClientEvent("ROOMS", rooms)
+        }
     ]
+}
+
+enum PLAYER_STATE {
+    BROWSING,
+    PLAYING,
+    MAIN_MENU,
 }
 
 export class TetrisClient {
 
     private socket?: Socket
     private playerUpdated: boolean = false
-    connectionEstablish: boolean = false
+    connectionEstablished: boolean = false
     eventHooks: {[eventName in Events]: ((...data: any | undefined) => void)[]}
     clientEventHooks: {[eventName in ClientEvents]: ((...data: any | undefined) => void)[]}
     otherPlayers: {[id: string]: Player}
+    playerState: PLAYER_STATE
+    rooms?: Rooms
+    currentRoom?: Room
 
     player: Player
 
-    constructor(name: string, grid: number[][], currentPiece: Piece, nextPieces: nextPieces[]) {
+    constructor() {
+        //, grid: number[][], currentPiece: Piece, nextPieces: nextPieces[]
+        
         // @ts-ignore
         this.eventHooks = {}
         // @ts-ignore
@@ -120,21 +163,16 @@ export class TetrisClient {
         
         this.otherPlayers = {}
 
-        this.player = {
-            name,
-            grid,
-            score: 0,
-            currentPiece,
-            nextPieces: nextPieces
-        }
+        this.playerState = PLAYER_STATE.MAIN_MENU
 
-        this.connectToServer()
+        this.player = {
+        }
     }
 
     /**
      * Handles loading all of handlers for the server.
      */
-    private connectToServer() {
+    connectToServer() {
         let client = this
         this.socket = io(window.location.origin, {query: {name: this.player.name}})
 
@@ -152,7 +190,9 @@ export class TetrisClient {
             this.endSession()
         })
 
-        this.connectionEstablish = true
+        this.connectionEstablished = true
+
+        this.playerState = PLAYER_STATE.BROWSING
     }
 
     /** 
@@ -213,7 +253,7 @@ export class TetrisClient {
 
         delete this.socket
 
-        this.connectionEstablish = false
+        this.connectionEstablished = false
     }
 
     /**
@@ -221,8 +261,9 @@ export class TetrisClient {
      */
     syncWithServer() {
         if (!this.playerUpdated) return
-        if (!this.connectionEstablish) return
+        if (!this.connectionEstablished) return
         if (!this.socket) return
+        if (!this.currentRoom) return
 
         console.log("Syncing...")
 
@@ -260,6 +301,26 @@ export class TetrisClient {
     updateNextPieces(pieces: Player["nextPieces"]) {
         this.player.nextPieces = pieces
         this.playerUpdated = true
+    }
+
+    /** 
+     * Updates Player with any data.
+     */
+    updatePlayer(playerData: any) {
+        for (const data of Object.entries(playerData)) {
+            // @ts-ignore
+            this.player[data[0]] = data[1]
+        }
+        
+        this.playerUpdated = true
+    }
+
+    createRoom(gamemode: GameModes, name: string, maxPlayers: string) {
+        if (!this.socket) return
+
+        this.socket.emit("REQUEST_CREATE_ROOM", {gamemode, name, maxPlayers})
+
+        this.playerState = PLAYER_STATE.PLAYING
     }
 }
 

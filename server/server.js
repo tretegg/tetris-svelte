@@ -27,6 +27,13 @@
  * @prop {Piece} currentPiece
  * @prop {Piece} nextPieces
  * @prop {any} socket
+ * @prop {RoomIdentifier|undefined} room
+ */
+
+/**
+ * @typedef {Object} RoomIdentifier
+ * @prop {string} id
+ * @prop {string} gamemode
  */
 
 /**
@@ -46,34 +53,22 @@ const CLIENT_EVENTS = {
         (instance, socket, ...data) => {
             let initData = data[0]
 
+            instance.updatePlayerData(socket.id, initData)
+
             let player = instance.players[socket.id]
 
             if (!player.name) player.name = "Player"
 
-            for (const data of Object.entries(initData)) {
-                // validate data
-                instance.players[socket.id][data[0]] = data[1];
-            }
-
-            instance.players[socket.id] = player
-
-            let toSend = Object.assign({}, player)
-            delete toSend.socket
-            toSend.id = socket.id
-
-            console.log("New Player Joined Game: " + player.name)
-
-            instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", toSend)
+            console.log("Client Initialized:", player.name)
         }
     ],
     "PLAYER_UPDATE": [
         (instance, socket, ...data) => {
+            if (!instance.playerRoomMap[socket.id]) return
+            
             let player = data[0]
 
-            for (const data in Object.entries(player)) {
-                // todo: check if data[0] is a valid key
-                instance.players[socket.id][data[0]] = data[1]
-            }
+            instance.updatePlayerData(socket.id, player)
 
             let toSend = Object.assign({}, player)
             delete toSend.socket
@@ -88,6 +83,7 @@ const CLIENT_EVENTS = {
 
             // if the player's socket has closed before its even sent a init to the server dip outta there
             if (!leavingPlayer) return
+            if (!leavingPlayer.room) return
     
             console.log(`Player [ID ${socket.id}|${leavingPlayer.name}] is leaving the game.`)
 
@@ -95,7 +91,12 @@ const CLIENT_EVENTS = {
             delete toSend.socket
             toSend.id = socket.id
 
-            console.log("Sending Leaving Data:", toSend)
+            socket.leave(`room-${leavingPlayer.room.id}`)
+            socket.join(`browsing`)
+
+            
+
+            delete instance.playerRoomMap[socket.id]
 
             instance.updateOtherPlayers(socket.id, "PLAYER_LEAVING", toSend)
 
@@ -103,12 +104,11 @@ const CLIENT_EVENTS = {
         }
     ],
     "JOIN_ROOM": [
-        // room is the id of the room
-        (instance, socket, {gamemode, room: roomID}) => {
+        (instance, socket, {gamemode, roomID}) => {
             let roomData = instance.rooms[gamemode][roomID]
 
             if (roomData.currentPlayers >= roomData.maxPlayers) {
-                socket.emit("GAME_FULL", {gamemode, room: roomID})
+                socket.emit("GAME_FULL", {gamemode, roomID})
                 return
             }
 
@@ -117,26 +117,47 @@ const CLIENT_EVENTS = {
 
             roomData.currentPlayers += 1
             instance.rooms[gamemode][roomID] = roomData
+            instance.playerRoomMap[socket.id] = {
+                id: roomID,
+                gamemode
+            }
 
-            instance.io.to("browsing").emit("ROOMS", instance.rooms)
+            instance.updateBrowsingPlayers()
         } 
-    ]
-}
-
-const EVENTS = {
+    ],
     "REQUEST_CREATE_ROOM": [
-        (instance, io, ...data) => {
+        (instance, socket, {gamemode, name, maxPlayers}) => {
+            let roomID = crypto.randomUUID()
 
+            while (instance.rooms[gamemode][roomID]) {
+                roomID = crypto.randomUUID()
+            }
+
+            instance.rooms[gamemode][roomID] = {
+                name,
+                maxPlayers,
+                currentPlayers: 1,
+                id: roomID
+            }
+
+
+            
         }
     ]
 }
 
+const EVENTS = {
+}
+
 export class TetrisServer {
     /**
-     * @type {{id: string}: Player}
+     * @type {[id: string]: Player}
      */
     players
 
+    /**
+     * @type {[id: string]: RoomIdentifier}
+     */
     playerRoomMap
 
     io
@@ -167,6 +188,10 @@ export class TetrisServer {
 
             socket.join("browsing")
 
+            this.players[socket.id] = {
+
+            }
+
             socket.emit("ROOMS", this.rooms)
 
             Object.entries(CLIENT_EVENTS).forEach((event)=>{
@@ -179,8 +204,23 @@ export class TetrisServer {
         })
     }
 
+    updateBrowsingPlayers() {
+        this.io.to("browsing").emit("ROOMS", this.rooms)
+    }
+
+    updatePlayerData(id, playerData) {
+        for (const data of Object.entries(playerData)) {
+            // todo: check if data[0] is a valid key
+            this.players[id][data[0]] = data[1]
+        }
+    }
+
     updateOtherPlayers(playerID, event, data) {
         let room = this.playerRoomMap[playerID]
+
+        if (!room) return
+
+        room = room.id
 
         if (!room) {
             console.warn("Room undefined!")

@@ -24,8 +24,11 @@
         drawGrid(CELLSIZE);
 
         // Draw the player's grid
+        // @ts-ignore
         for (let row = 0; row < player.grid.length; row++) {
+            // @ts-ignore
             for (let col = 0; col < player.grid[row].length; col++) {
+                // @ts-ignore
                 const cell = player.grid[row][col];
                 if (cell === 1) {
                     ctx.fillStyle = "grey";

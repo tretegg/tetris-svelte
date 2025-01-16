@@ -116,4 +116,3 @@
         <p class="pixel text-white text-sm">Next:</p>
     </div>
 </div>
-<!--  -->

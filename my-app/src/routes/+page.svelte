@@ -1,10 +1,12 @@
 <script lang="ts">
-    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece, type Player } from "$lib/client/client";
+    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece, type Player, type keybinds, type Rooms } from "$lib/client/client";
     import { onMount } from "svelte";
     import NextPiece from "$lib/nextPiece.svelte";
     import HeldPiece from "$lib/heldPiece.svelte";
     import OtherPlayers from "$lib/board.svelte";
     import GameModeSelector from "$lib/gameModeSelector.svelte";
+    import Settings from "$lib/settings.svelte";
+    import Browser from "$lib/browser.svelte";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
@@ -14,6 +16,11 @@
     let heldTetromino: heldPiece | undefined;
     let nextPiece: nextPieces[] =[];
     let totalClears = 0;
+    let time = 0;
+    let clock: string = "00:00";
+
+    // Used to prevent the player from swapping infinitely
+    let canSwap = true;
 
     let otherPlayers: {[id: string]: Player} = {}
     
@@ -77,6 +84,9 @@
         color: string
     }
 
+    let binds: keybinds;
+    let rooms: Rooms
+
     onMount(() => {
         if (!canvas) {
             console.error("Canvas element is not found!");
@@ -96,6 +106,16 @@
         setInterval(draw, 1000 / 60);
         setInterval(lower, 1000 / speed);
         // setInterval(log, 1000)
+
+        client = new TetrisClient()
+
+        client.hookClientEvent("PLAYER_UPDATE", (players: {[id:string]:Player}) => {
+            otherPlayers = players
+        })
+
+        client.hookClientEvent("ROOMS", (roomsData: Rooms) => {
+            rooms = roomsData
+        })
     });
 
     function log () {
@@ -199,15 +219,11 @@
                     for (let row = 0; row < piece.shape.length; row++) {
                         // If it's in the same row as the cleared line
                         if ((piece.y + row) === line) {
-                            // this is actually useful to seperate the console.table logs
-                            // lmao
                             // getGerby()
 
-                            // dont edit anythign rn
                             // Remove it from the pieces shape
-                            // console.table(piece.shape)
                             piece.shape.splice(row, 1);
-                            // console.table(piece.shape)
+
                             piecePartCleared = true;
                             
                             
@@ -321,6 +337,7 @@
     }
 
     function newPiece() {
+        canSwap = true;
         // Validate SHAPES and canvas dimensions
         if (!SHAPES || SHAPES.length === 0) {
             console.error("SHAPES array is empty or not defined");
@@ -420,25 +437,25 @@
         pieces.forEach((element) => {
             if (element.grounded) return;
 
-            if (key === "a" && !collision(element, "left")) {
+            if (key === binds.left && !collision(element, "left")) {
                 element.x--;
-            } else if (key === "d" && !collision(element, "right")) {
+            } else if (key === binds.right && !collision(element, "right")) {
                 element.x++;
-            } else if (key === "s" && !collision(element, "down")) {
+            } else if (key === binds.softDrop && !collision(element, "down")) {
                 element.y++;
-            } else if (key === "ArrowRight") {
+            } else if (key === binds.rotateClockwise) {
                 const rotatedShape = rotateClockwise(element.shape);
                 const tempPiece = { ...element, shape: rotatedShape };
                 if (!collision(tempPiece)) {
                     element.shape = rotatedShape;
                 }
-            } else if (key === "ArrowLeft") {
+            } else if (key === binds.rotateCounterClockwise) {
                 const rotatedShape = rotateCounterclockwise(element.shape);
                 const tempPiece = { ...element, shape: rotatedShape };
                 if (!collision(tempPiece)) {
                     element.shape = rotatedShape;
                 }
-            } else if (key === " ") {
+            } else if (key === binds.hardDrop) {
                 while (!collision(element, "down")) {
                     element.y++;
                 }
@@ -455,7 +472,7 @@
         const activePiece = pieces.find(element => !element.grounded);
         if (!activePiece) return;
 
-        if (heldTetromino) {
+        if (heldTetromino && canSwap) {
             // Store current piece's properties
             const tempShape = [...activePiece.shape.map(row => [...row])];
             const tempColor = activePiece.color;
@@ -472,7 +489,8 @@
             heldTetromino.shape = tempShape;
             heldTetromino.color = tempColor;
             heldTetromino.pieceID = tempPieceID;
-        } else {
+            canSwap = false;
+        } else if (canSwap && !heldTetromino) {
             // If no held piece exists, store current piece and create new piece
             heldTetromino = {
                 shape: [...activePiece.shape.map(row => [...row])],
@@ -619,6 +637,7 @@
     $: canStart = validateUsername(username)
 
     let gameOpened: boolean = false
+    let browsing: boolean = false
     let gameOver: boolean = false
     let gameMode: "SURVIVAL" | "DEATHMATCH"
 
@@ -632,14 +651,10 @@
         speed = 1;
         score = 0;
         totalClears = 0;
+        startClock()
 
         if (client) client.endSession();
         newPiece();
-
-        client = new TetrisClient(username.trim(), grid, getCurrentPiece()!, nextPiece)
-        client.hookClientEvent("PLAYER_UPDATE", (players: {[id:string]:Player}) => {
-            otherPlayers = players
-        })
 
         gameOver = false
     }
@@ -648,9 +663,33 @@
         console.error("Gerb not found. we automated deuterium yesterday on dyson sphere just a little fyi btw");
     }
 
-    function start() {
+    function startGame() {
         gameOpened = true
         reset()
+    }
+
+    function startBrowsing() {
+        client.updatePlayer({
+            name: username
+        })
+
+        client.connectToServer()
+        
+        gameOpened = true
+        browsing = true  
+    }
+
+    function increment() {
+        time++;
+        let timeSecs = Math.floor(time % 60) 
+        let timeMins = Math.floor(time / 60)
+        let secString = timeSecs < 10 ? "0" + timeSecs : timeSecs
+        let minString = timeMins < 10 ? "0" + timeMins : timeMins
+        clock = minString + ":" + secString;
+    }
+
+    function startClock() {
+        setInterval(increment, 1000)
     }
 </script>
 
@@ -666,7 +705,6 @@
     }}
 
     on:beforeunload={(e) => {
-        console.log("client before unload:", client)
         if (client) client.endSession()
     }}
 />
@@ -677,26 +715,33 @@
             <div>
                 <h1 class="text-white pixel text-5xl">Tetris</h1>
 
-                <GameModeSelector bind:gameMode/>
+                <!-- <GameModeSelector bind:gameMode/> -->
+                <div class="flex flex-col items-center justify-center">
+                    <input bind:value={username} class="pixel bg-black border-white border text-sm line-clamp-1 w-52 text-white !outline-none mt-2 pl-2" placeholder="Username" type="text">
+                </div>
+
                 <div class="flex items-center justify-center">
-                    <button on:click={start}>
+                    <button on:click={startBrowsing}>
                         <p class:blocked={!canStart} class="w-fit border py-1 px-2 mt-2 bg-black pixel text-white text-sm text-center active:scale-95 hover:scale-105 transition duration-500">
                             Start
                         </p>
                     </button>
                 </div>
-                <div class="flex flex-col items-center justify-center">
-                    <input bind:value={username} class="pixel bg-black border-white border text-sm line-clamp-1 w-52 text-white !outline-none mt-2 pl-2" placeholder="Username" type="text">
-                </div>
+            </div>
+            <div>
+                <Settings bind:binds />
             </div>
         </div>
+    {/if}
+
+    {#if browsing && gameOpened}
+        <Browser {client} {rooms}/>
     {/if}
 
     <!-- Title Section -->
     <div class="flex flex-col ml-2 mt-2">
         <p class="pixel text-white text-4xl mt-2">TETRIS</p>
-        <!-- <button class:blocked={!canStart} class="pixel border-white text-white border-2 active:scale-95 hover:scale-105 transition duration-500 ease-in-out rounded-md"
-        on:click={reset}>Start</button> -->
+        <p class="pixel text-white text-md text-center">{clock}</p>
     </div>
 
     <div class="flex flex-row items-start mt-4">
