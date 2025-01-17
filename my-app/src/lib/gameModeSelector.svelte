@@ -7,10 +7,6 @@
     let clazz: string = "", stylez: string = ""
     export {clazz as class, stylez as style}
 
-    function start() {
-        
-    }
-
 </script>
 
 <div class=" space-y-2 {clazz}" style={stylez}>

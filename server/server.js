@@ -94,7 +94,13 @@ const CLIENT_EVENTS = {
             socket.leave(`room-${leavingPlayer.room.id}`)
             socket.join(`browsing`)
 
-            
+            let roomID = instance.playerRoomMap[socket.id]
+
+            instance.rooms[gamemode][id].currentPlayers -= 1
+
+            if (instance.rooms[gamemode][id].currentPlayers < 1) {
+                delete instance.rooms[gamemode][id]
+            }
 
             delete instance.playerRoomMap[socket.id]
 
@@ -105,6 +111,8 @@ const CLIENT_EVENTS = {
     ],
     "JOIN_ROOM": [
         (instance, socket, {gamemode, roomID}) => {
+            console.log("joining with", gamemode, roomID)
+
             let roomData = instance.rooms[gamemode][roomID]
 
             if (roomData.currentPlayers >= roomData.maxPlayers) {
@@ -122,12 +130,18 @@ const CLIENT_EVENTS = {
                 gamemode
             }
 
+            socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID])
+
             instance.updateBrowsingPlayers()
         } 
     ],
     "REQUEST_CREATE_ROOM": [
         (instance, socket, {gamemode, name, maxPlayers}) => {
             let roomID = crypto.randomUUID()
+
+            console.log("Creating room with:", gamemode, name, maxPlayers)
+
+            if (!instance.rooms[gamemode]) instance.rooms[gamemode] = {}
 
             while (instance.rooms[gamemode][roomID]) {
                 roomID = crypto.randomUUID()
@@ -140,8 +154,9 @@ const CLIENT_EVENTS = {
                 id: roomID
             }
 
+            socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID])
 
-            
+            instance.updateBrowsingPlayers()
         }
     ]
 }

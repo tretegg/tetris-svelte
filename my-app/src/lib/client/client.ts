@@ -2,8 +2,8 @@ import { io } from 'socket.io-client'
 import type { Socket } from "socket.io-client"
 import _ from "lodash";
 
-export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING" | "ROOMS"
-export type ClientEvents = "PLAYER_UPDATE" | "ROOMS"
+export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING" | "ROOMS" | "ROOM_JOINED"
+export type ClientEvents = "PLAYER_UPDATE" | "ROOMS" | "ROOM_JOINED"
 
 export type Shape = number[][];
 
@@ -91,6 +91,7 @@ export type Rooms = {[gamemode: string]: {[id:string]: Room}}
 export type eventHandler = ((client: TetrisClient, socket: Socket, ...data: any | undefined) => void)
 
 export type GameModes = "SURVIVAL" | "DEATHMATCH"
+export const GAMEMODES: GameModes[] = ["SURVIVAL", "DEATHMATCH"]
 
 const Events: {[eventName in Events]: eventHandler[]} = {
     "DEBUG": [
@@ -127,8 +128,20 @@ const Events: {[eventName in Events]: eventHandler[]} = {
     ],
     "ROOMS": [
         (client, _socket, rooms: Rooms) => {
+            console.log("ROOMS:", rooms)
+
             client.rooms = rooms
             client.ClientEvent("ROOMS", rooms)
+        }
+    ],
+    "ROOM_JOINED": [
+        (client, _socket, room: Room) => {
+            console.log("Room Joined!", room)
+
+            client.currentRoom = room
+            client.playerState = PLAYER_STATE.PLAYING
+
+            client.ClientEvent("ROOM_JOINED", room)
         }
     ]
 }
@@ -315,12 +328,25 @@ export class TetrisClient {
         this.playerUpdated = true
     }
 
-    createRoom(gamemode: GameModes, name: string, maxPlayers: string) {
+    createRoom(gamemode: GameModes, name: string, maxPlayers: number) {
         if (!this.socket) return
 
-        this.socket.emit("REQUEST_CREATE_ROOM", {gamemode, name, maxPlayers})
+        if (!maxPlayers || !name || !gamemode) {
+            console.warn("Room creation data is undefined!", gamemode, name, maxPlayers)
+            return
+        }
 
-        this.playerState = PLAYER_STATE.PLAYING
+        this.socket.emit("REQUEST_CREATE_ROOM", {
+            gamemode,
+            name,
+            maxPlayers
+        })
+    }
+
+    joinRoom(gamemode: string, id: string) {
+        if (!this.socket) return
+
+        this.socket.emit("JOIN_ROOM", {gamemode, roomID: id})
     }
 }
 

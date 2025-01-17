@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece, type Player, type keybinds, type Rooms } from "$lib/client/client";
+    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece, type Player, type keybinds, type Rooms, type Room } from "$lib/client/client";
     import { onMount } from "svelte";
     import NextPiece from "$lib/nextPiece.svelte";
     import HeldPiece from "$lib/heldPiece.svelte";
@@ -18,6 +18,7 @@
     let totalClears = 0;
     let time = 0;
     let clock: string = "00:00";
+    let showSettings: boolean = false
 
     // Used to prevent the player from swapping infinitely
     let canSwap = true;
@@ -84,8 +85,17 @@
         color: string
     }
 
-    let binds: keybinds;
+    let binds: keybinds = {
+        left: "a",
+        right: "d",
+        softDrop: "s",
+        rotateClockwise: "ArrowRight",
+        rotateCounterClockwise: "ArrowLeft",
+        hardDrop: " ",
+        hold: "c"
+    }
     let rooms: Rooms
+    let currentRoom: Room
 
     onMount(() => {
         if (!canvas) {
@@ -113,8 +123,15 @@
             otherPlayers = players
         })
 
-        client.hookClientEvent("ROOMS", (roomsData: Rooms) => {
+        client.hookClientEvent("ROOMS", (roomsData: Rooms) => { 
             rooms = roomsData
+        })
+
+        client.hookClientEvent("ROOM_JOINED", (room: Room) => {
+            currentRoom = room
+            browsing = false
+
+            startGame()
         })
     });
 
@@ -204,7 +221,7 @@
         if (clearedLines.length <= 0) return;
 
         clearedLines.forEach(line => {
-            // Remove the line and fill it with 0's
+            // Remove the line
             grid.splice(line, 1);
             // Add a new empty row to the top
             grid.unshift(new Array(10).fill(0));
@@ -669,6 +686,8 @@
     }
 
     function startBrowsing() {
+        if (!validateUsername(username)) return
+
         client.updatePlayer({
             name: username
         })
@@ -728,14 +747,15 @@
                     </button>
                 </div>
             </div>
-            <div>
-                <Settings bind:binds />
-            </div>
         </div>
     {/if}
 
+    {#if showSettings}
+        <Settings bind:binds />
+    {/if}
+
     {#if browsing && gameOpened}
-        <Browser {client} {rooms}/>
+        <Browser {client} bind:rooms/>
     {/if}
 
     <!-- Title Section -->
@@ -769,6 +789,16 @@
     </div>
 </div>
 
+{#if !browsing}
+    <div class="absolute top-2 right-2 w-full h-full z-20 pointer-events-none">
+        <!-- svelte-ignore a11y_consider_explicit_label -->
+        <!-- svelte-ignore a11y_missing_attribute -->
+        <button on:click={() => showSettings = !showSettings}>
+            <img src="./settings.svg" alt="settings" class="w-[48px] h-[48px] ml-3 pointer-events-auto invert aspect-square">
+        </button>
+    </div>
+{/if}
+
 {#if otherPlayers}
     <div class="w-full h-full absolute top-0 left-0 pointer-events-none">
         {#each Object.entries(otherPlayers) as player}
@@ -779,6 +809,6 @@
 
 <style lang="postcss">
     .blocked {
-        @apply scale-90 border-neutral-900 text-neutral-900 ;
+        @apply scale-90 border-neutral-900 text-neutral-900 cursor-auto;
     }
 </style>
