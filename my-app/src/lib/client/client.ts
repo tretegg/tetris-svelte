@@ -163,6 +163,7 @@ export class TetrisClient {
     playerState: PLAYER_STATE
     rooms?: Rooms
     currentRoom?: Room
+    testSessionEnded: boolean = false
 
     player: Player
 
@@ -253,6 +254,8 @@ export class TetrisClient {
      * Ends the Socket.io connection and annouces it to the server
      */
     endSession() {
+        console.log("ending session...")
+
         if (!this.socket) {
             console.warn("Trying to end session that doesn't have socket!!")
             return
@@ -273,6 +276,15 @@ export class TetrisClient {
      * Update `TetrisClient`'s player data with the server.
      */
     syncWithServer() {
+        if(this.testSessionEnded) return
+        
+        // console.log({
+        //     playerUpdated: this.playerUpdated,
+        //     connectionEstablished: this.connectionEstablished,
+        //     socket: this.socket,
+        //     currentRoom: this.currentRoom
+        // })
+
         if (!this.playerUpdated) return
         if (!this.connectionEstablished) return
         if (!this.socket) return

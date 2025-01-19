@@ -2,9 +2,8 @@
     import type { GameModes, TetrisClient } from "$lib/client/client";
     import { GAMEMODES } from "$lib/client/client";
     import { createEventDispatcher } from "svelte";
-    import { fade } from "svelte/transition";
 
-    export let client: TetrisClient
+    export let client: TetrisClient | undefined
     export let show: boolean
 
     let roomName: HTMLInputElement
@@ -35,6 +34,7 @@
     function CreateRoom() {
 
         if (!check()) return
+        if (!client) return
 
         let name = roomName.value
         let maxplrs = parseInt(maxPlayers.value)

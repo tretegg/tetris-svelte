@@ -4,7 +4,7 @@
     import CreateRoom from "./browser/CreateRoom.svelte";
 
     export let rooms: Rooms
-    export let client: TetrisClient
+    export let client: TetrisClient | undefined
 
     let showRoomCreator: boolean = false
 

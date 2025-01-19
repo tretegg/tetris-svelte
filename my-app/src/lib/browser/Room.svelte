@@ -2,9 +2,11 @@
     import type { Room, TetrisClient } from "$lib/client/client";
 
     export let room: Room & {gamemode?: string}
-    export let client: TetrisClient
+    export let client: TetrisClient | undefined
 
     function joinRoom() {
+        if (!client) return
+
         client.joinRoom(room.gamemode!, room.id)
     }
 

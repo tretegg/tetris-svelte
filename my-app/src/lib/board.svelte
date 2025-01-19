@@ -3,7 +3,7 @@
     import { onMount } from "svelte";
     import type { Player } from "./client/client";
     import OtherNext from "./otherNext.svelte";
-
+    /// schumnky
     let CELLSIZE = 20;
 
     let canvas: HTMLCanvasElement;
@@ -113,6 +113,10 @@
         <p>Score: {player.score}</p>
     </div>
     
-    <canvas bind:this={canvas} class="border-2 bg-black"></canvas>    
-    <OtherNext pieces={player.nextPieces} />
+    <div class="flex">
+        <canvas bind:this={canvas} class="border-2 bg-black"></canvas>    
+        <div class="ml-1">
+            <OtherNext pieces={player.nextPieces} />
+        </div>
+    </div>
 </div>

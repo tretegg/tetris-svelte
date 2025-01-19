@@ -76,7 +76,7 @@
 
     let grid: number[][] = new Array(20).fill(0).map(() => new Array(10).fill(0));
 
-    let client: TetrisClient;
+    let client: TetrisClient | undefined;
     let username: string
 
     type cell = {
@@ -184,6 +184,50 @@
         updateGrid();
 
         clearLines();
+    }
+
+    function receiveLines(linesSent: number) {
+
+        let currentPieceY = 0;
+        // Shift pieces upwards
+        pieces.forEach(piece => {
+            if (piece.grounded) {
+                piece.y -= linesSent;
+            } if (!piece.grounded) {
+                currentPieceY = getLowestPieceY(piece)
+            }
+        });
+
+        let clearedColumn = Math.floor(Math.random() * 10);
+        let y = 19;
+
+        for (let i = 0; i < linesSent; i++) {
+            let newShape: Shape = [new Array(10).fill(1)];
+
+            newShape[0][clearedColumn] = 0;
+
+            if (y == currentPieceY) {
+                currentPieceY--;
+                pieces.forEach(piece => {
+                    if (!piece.grounded) {
+                        piece.y--;
+                        piece.grounded;
+                    }
+                });
+            }
+
+            pieces.push({
+                x: 0,
+                y: y,
+                color: "#808080",
+                shape: newShape,
+                grounded: true,
+                pieceID: 0
+            });
+
+            y--;
+        }
+        updateGrid();
     }
 
     function updateGrid() {
@@ -478,10 +522,15 @@
                 }
             } else if (key === "c") {
                 swapHeldPiece();
+            } else if (key === "h") {
+                receiveLines(1);
             } else {
                 return;
             }
         });
+
+        
+        if (client) client.syncWithServer()
     }
 
     function swapHeldPiece() {
@@ -670,7 +719,15 @@
         totalClears = 0;
         startClock()
 
-        if (client) client.endSession();
+        if (client) {
+            client.updatePlayer({
+                score: 0
+            })
+        }
+
+        
+
+        // if (client) client.endSession();
         newPiece();
 
         gameOver = false
@@ -687,6 +744,7 @@
 
     function startBrowsing() {
         if (!validateUsername(username)) return
+        if (!client) return
 
         client.updatePlayer({
             name: username
@@ -710,6 +768,12 @@
     function startClock() {
         setInterval(increment, 1000)
     }
+
+    import.meta.hot?.on("vite:beforeUpdate", () => {
+        if (client) {
+            client = undefined
+        }
+    })
 </script>
 
 <link
@@ -724,6 +788,7 @@
     }}
 
     on:beforeunload={(e) => {
+        console.log("client:::",client)
         if (client) client.endSession()
     }}
 />
@@ -790,11 +855,11 @@
 </div>
 
 {#if !browsing}
-    <div class="absolute top-2 right-2 w-full h-full z-20 pointer-events-none">
+    <div class="absolute top-0 left-0 flex items-start justify-end w-full h-full z-20 pointer-events-none">
         <!-- svelte-ignore a11y_consider_explicit_label -->
         <!-- svelte-ignore a11y_missing_attribute -->
         <button on:click={() => showSettings = !showSettings}>
-            <img src="./settings.svg" alt="settings" class="w-[48px] h-[48px] ml-3 pointer-events-auto invert aspect-square">
+            <img src="./settings.svg" alt="settings" class="w-[48px] h-[48px] mt-3 mr-3 pointer-events-auto invert aspect-square">
         </button>
     </div>
 {/if}

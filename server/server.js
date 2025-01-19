@@ -154,6 +154,14 @@ const CLIENT_EVENTS = {
                 id: roomID
             }
 
+            instance.playerRoomMap[socket.id] = {
+                id: roomID,
+                gamemode
+            }
+
+            socket.leave("browsing")
+            socket.join(`room-${roomID}`)
+
             socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID])
 
             instance.updateBrowsingPlayers()
@@ -242,17 +250,19 @@ export class TetrisServer {
             return
         }
         
-        let players = this.io.sockets.clients(room)
+        let players = Array.from(this.io.sockets.adapter.rooms.get(`room-${room}`))
 
-        for (const playerSocket in players) {
-            if (playerSocket.id == playerID) return
+        for (const player of players) {
+            if (player == playerID) continue
+
+            // console.log(`Distributing Update [${event}] to Player [ID ${playerID}|${this.players[playerID].name}]`)
 
             if (data["socket"]) {
                 console.warn(`Socket detected on data while sending [${event}]!`, data)
                 delete data["socket"]
             }
 
-            playerSocket.socket.emit(event, data)
+            this.io.of("/").sockets.get(player).emit(event, data)
         }
     }
 }
