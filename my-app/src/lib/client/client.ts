@@ -36,6 +36,7 @@ export interface Piece {
     shape: Shape
     grounded: boolean
     pieceID: number
+    isGhost: boolean
 }
 
 export interface RoomIdentifier {
@@ -138,11 +139,17 @@ const Events: {[eventName in Events]: eventHandler[]} = {
         }
     ],
     "ROOM_JOINED": [
-        (client, _socket, room: Room) => {
+        (client, _socket, room: Room, gamemode: GameModes) => {
             console.log("Room Joined!", room)
 
             client.currentRoom = room
             client.playerState = PLAYER_STATE.PLAYING
+
+            console.log("current!:", client.currentGameMode)
+
+            // @ts-ignore
+            let sendingRoom: Room & {gamemode: GameModes} = room
+            sendingRoom.gamemode = gamemode
 
             client.ClientEvent("ROOM_JOINED", room)
         }
@@ -167,6 +174,7 @@ export class TetrisClient {
     rooms?: Rooms
     currentRoom?: Room
     testSessionEnded: boolean = false
+    currentGameMode?: GameModes
 
     player: Player
 

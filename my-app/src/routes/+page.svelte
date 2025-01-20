@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece, type Player, type keybinds, type Rooms, type Room } from "$lib/client/client";
+    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece, type Player, type keybinds, type Rooms, type Room, type GameModes } from "$lib/client/client";
     import { onMount } from "svelte";
     import NextPiece from "$lib/nextPiece.svelte";
     import HeldPiece from "$lib/heldPiece.svelte";
@@ -7,6 +7,8 @@
     import GameModeSelector from "$lib/gameModeSelector.svelte";
     import Settings from "$lib/settings.svelte";
     import Browser from "$lib/browser.svelte";
+    import { flip } from "svelte/animate"
+    import { slide } from "svelte/transition";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
@@ -97,6 +99,8 @@
     let rooms: Rooms
     let currentRoom: Room
 
+    let lowerInterval: NodeJS.Timeout
+
     onMount(() => {
         if (!canvas) {
             console.error("Canvas element is not found!");
@@ -114,7 +118,7 @@
         ctx.scale(CELLSIZE, CELLSIZE);
 
         setInterval(draw, 1000 / 60);
-        setInterval(lower, 1000 / speed);
+        lowerInterval = setInterval(lower, 1000 / speed);
         // setInterval(log, 1000)
 
         client = new TetrisClient()
@@ -127,9 +131,11 @@
             rooms = roomsData
         })
 
-        client.hookClientEvent("ROOM_JOINED", (room: Room) => {
+        client.hookClientEvent("ROOM_JOINED", (room: Room & {gamemode: GameModes}) => {
             currentRoom = room
             browsing = false
+
+            gameMode = room.gamemode
 
             startGame()
         })
@@ -147,6 +153,12 @@
     function draw() {
         ctx.clearRect(0, 0, 400, 800); // Clear the canvas
         drawGrid(CELLSIZE); // Draw the grid with 40px cells
+
+        pieces.forEach((piece) => {
+            if (!piece.grounded) {
+                drawGhost(piece);
+            }
+        })
 
         pieces.forEach((element) => {
             // For each piece in the pieces array
@@ -186,6 +198,53 @@
         clearLines();
     }
 
+    function drawGhost(piece: Piece) {
+        let ghostPiece: Piece = {
+            x: piece.x,
+            y: piece.y,
+            color: "rgba(128, 128, 128, 0.2)",
+            shape: piece.shape,
+            grounded: false,
+            pieceID: 1,
+            isGhost: true
+        }
+
+        while (!collision(ghostPiece, "down")) {
+            ghostPiece.y++;
+        }
+
+        ghostPiece.shape.forEach((row, rowIndex) => {
+                // For each row of the piece
+                row.forEach((cell, colIndex) => {
+                    // For each cell in the row
+                    if (cell === 1) {
+                        // Set the fill color for the piece
+                        ctx.fillStyle = ghostPiece.color;
+
+                        // Fill the rectangle (the block in the piece)
+                        ctx.fillRect(
+                            ghostPiece.x + colIndex, 
+                            ghostPiece.y + rowIndex, 
+                            1, 1
+                        );
+
+                        // Set the outline color (adjusted) and line width for the inner outline
+                        ctx.strokeStyle = "rgba(59, 59, 59, 0.2)"
+                        ctx.lineWidth = 0.1; // Outline thickness
+
+                        // Draw the outline, but slightly shrink the position to apply inside the shape
+                        ctx.strokeRect(
+                            ghostPiece.x + colIndex + 0.05,  // Slightly shift right
+                            ghostPiece.y + rowIndex + 0.05,   // Slightly shift down
+                            1 - 0.1,  // Shrink the width and height for the outline to appear inside
+                            1 - 0.1    // Shrink the width and height for the outline to appear inside
+                        );
+                    }
+                });
+            });
+
+    }
+
     function receiveLines(linesSent: number) {
 
         let currentPieceY = 0;
@@ -222,7 +281,8 @@
                 color: "#808080",
                 shape: newShape,
                 grounded: true,
-                pieceID: 0
+                pieceID: 0,
+                isGhost: false
             });
 
             y--;
@@ -312,26 +372,45 @@
     function updateScore(clearedLines: number) {
         if (clearedLines > 0) {
             if (clearedLines === 1) {
-                score += 100 * level;
+                score += Math.floor(100 * level);
             } else if (clearedLines === 2) {
-                score += 300 * level;
+                score += Math.floor(300 * level);
             } else if (clearedLines === 3) {
-                score += 500 * level;
+                score += Math.floor(500 * level);
             } else if (clearedLines === 4) {
-                score += 800 * level;
+                score += Math.floor(800 * level);
             }
         }
         totalClears += clearedLines
+
         updateLevel();
 
         if (client) client.updateScore(score)
     }
 
+    let announceLevel = false
+
     function updateLevel() {
+        let currentLevel = level;
         if (gameMode == "DEATHMATCH") {
-            level = Math.floor(totalClears / 10) + 1;
+            level = Math.floor(totalClears / 10) + 1; // 10 lines per level
+        } else if (gameMode == "SURVIVAL") {
+            level = Math.floor(time / 30) + 1; // 30 seconds per level
         }
-        speed = level * 1.2;
+
+        if (level > currentLevel) {
+                announceLevel = true
+
+                setTimeout(() => {
+                    announceLevel = false
+                }, 1000);
+        }
+
+        speed = level * 1.05;
+
+        // update the interval to be consistent with the speed
+        clearInterval(lowerInterval);
+        lowerInterval = setInterval(lower, 1000 / speed);
     }
 
     function getLowestPieceY(piece: Piece): number {
@@ -446,7 +525,8 @@
             color: nextPiece[0].color,
             shape: nextPiece[0].shape,
             grounded: false,
-            pieceID: nextPiece[0].pieceID
+            pieceID: nextPiece[0].pieceID,
+            isGhost: false
         });
 
         nextPiece.shift();
@@ -576,7 +656,8 @@
             y: piece.y,
             color: piece.color,
             shape: piece.shape.map(row => [...row]), // copy the shape array
-            grounded: piece.grounded
+            grounded: piece.grounded,
+            isGhost: piece.isGhost
         };
         if (direction === "left") {
             tempPiece.x--;
@@ -595,7 +676,7 @@
 
 
                     for (const grounded of pieces) {
-                        if (grounded.grounded) {
+                        if (grounded.grounded && !grounded.isGhost) {
                             for (let gRow = 0; gRow < grounded.shape.length; gRow++) {
                                 for (let gCol = 0; gCol < grounded.shape[gRow].length; gCol++) {
                                     const gCell = grounded.shape[gRow][gCol];
@@ -604,8 +685,8 @@
                                         grounded.x + gCol === x &&
                                         grounded.y + gRow === y
                                     ) {
-                                        if (direction == "down") piece.grounded = true; 
-                                        if (direction == "down") newPiece();
+                                        if (direction == "down" && !piece.isGhost) piece.grounded = true; 
+                                        if (direction == "down" && !piece.isGhost) newPiece();
                                         if (piece.y == 0 && direction == "down") {
                                             if (client) client.leaveGame()
 
@@ -668,9 +749,10 @@
         if (leftmostX < 0 || rightmostX >= 400 / CELLSIZE) {
             return true;
         } else if (bottomY >= 800 / CELLSIZE) {
-            newPiece();
-            piece.grounded = true;
-            
+            if (!tempPiece.isGhost) {
+                newPiece();
+                piece.grounded = true;
+            }
             return true;
         }
 
@@ -711,6 +793,8 @@
     let browsing: boolean = false
     let gameOver: boolean = false
     let gameMode: "SURVIVAL" | "DEATHMATCH" = "SURVIVAL";
+
+    $: console.log("GAMEMODE:", gameMode)
 
     function reset() {
         if (!canStart) return
@@ -768,6 +852,7 @@
         let secString = timeSecs < 10 ? "0" + timeSecs : timeSecs
         let minString = timeMins < 10 ? "0" + timeMins : timeMins
         clock = minString + ":" + secString;
+        updateLevel();
     }
 
     let clockIncrement: NodeJS.Timeout
@@ -782,6 +867,7 @@
 
     import.meta.hot?.on("vite:beforeUpdate", () => {
         if (client) {
+            client.endSession()
             client = undefined
         }
     })
@@ -800,7 +886,6 @@
     }}
 
     on:beforeunload={(e) => {
-        console.log("client:::",client)
         if (client) client.endSession()
     }}
 />
@@ -835,6 +920,14 @@
         <Browser {client} bind:rooms/>
     {/if}
 
+    {#if announceLevel && !browsing && gameOpened}
+        <div transition:slide={{axis: "y", duration: 500}} class="absolute top-0 w-full h-full flex items-center justify-center z-20">
+            <div class="bg-black text-white pixel text-3xl p-2">
+                Level up!
+            </div>
+        </div>
+    {/if}
+
     <!-- Title Section -->
     <div class="flex flex-col ml-2 mt-2">
         <p class="pixel text-white text-4xl mt-2">TETRIS</p>
@@ -849,8 +942,10 @@
             
             {#if otherPlayers}
             <div class="w-full h-full pointer-events-none">
-                {#each Object.entries(otherPlayers) as player}
-                    <OtherPlayers player={player[1]} />
+                {#each Object.entries(otherPlayers) as player, index}    
+                    <div transition:slide={{axis: "y", duration: 500}} class="w-fit h-fit">
+                        <OtherPlayers player={player[1]} />
+                    </div>
                 {/each}
             </div>
             {/if}

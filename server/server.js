@@ -74,6 +74,10 @@ const CLIENT_EVENTS = {
             delete toSend.socket
             toSend.id = socket.id
 
+            if (!toSend.grid) {
+                console.warn("player doesn't have grid!!!!")
+            }
+
             instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", toSend)
         }
     ],
@@ -98,12 +102,13 @@ const CLIENT_EVENTS = {
             instance.rooms[gamemode][id].currentPlayers -= 1
 
             if (instance.rooms[gamemode][id].currentPlayers < 1) {
-                delete instance.rooms[gamemode][id]
-                instance.updateBrowsingPlayers()
+                instance.deleteRoom(gamemode, id)
             }
 
             socket.leave(`room-${id}`)
             socket.join(`browsing`)
+
+            instance.updateBrowsingPlayers()
 
             delete instance.playerRoomMap[socket.id]
         }
@@ -124,8 +129,7 @@ const CLIENT_EVENTS = {
                 instance.rooms[gamemode][id].currentPlayers -= 1
 
                 if (instance.rooms[gamemode][id].currentPlayers < 1) {
-                    delete instance.rooms[gamemode][id]
-                    instance.updateBrowsingPlayers()
+                    instance.deleteRoom(gamemode, id)
                 }
 
                 let toSend = Object.assign({}, leavingPlayer)
@@ -136,6 +140,8 @@ const CLIENT_EVENTS = {
     
                 socket.leave(`room-${id}`)
 
+                instance.updateBrowsingPlayers()
+
                 delete instance.playerRoomMap[socket.id]
             }
 
@@ -144,8 +150,6 @@ const CLIENT_EVENTS = {
     ],
     "JOIN_ROOM": [
         (instance, socket, {gamemode, roomID}) => {
-            console.log("joining with", gamemode, roomID)
-
             let roomData = instance.rooms[gamemode][roomID]
 
             if (roomData.currentPlayers >= roomData.maxPlayers) {
@@ -163,37 +167,28 @@ const CLIENT_EVENTS = {
                 gamemode
             }
 
-            socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID])
+            socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID], gamemode)
 
             instance.updateBrowsingPlayers()
         } 
     ],
     "REQUEST_CREATE_ROOM": [
         (instance, socket, {gamemode, name, maxPlayers}) => {
-            let roomID = crypto.randomUUID()
-
-            console.log("Creating room with:", gamemode, name, maxPlayers)
-
-            if (!instance.rooms[gamemode]) instance.rooms[gamemode] = {}
-
-            while (instance.rooms[gamemode][roomID]) {
-                roomID = crypto.randomUUID()
-            }
-
-            instance.rooms[gamemode][roomID] = {
+    
+            let roomIdentifier = instance.createRoom(gamemode, {
                 name,
-                maxPlayers,
-                currentPlayers: 1,
-                id: roomID
-            }
+                maxPlayers
+            })
+
+            let roomID = roomIdentifier.id
+
+            socket.leave("browsing")
+            socket.join(`room-${roomID}`)
 
             instance.playerRoomMap[socket.id] = {
                 id: roomID,
                 gamemode
             }
-
-            socket.leave("browsing")
-            socket.join(`room-${roomID}`)
 
             socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID])
 
@@ -220,7 +215,12 @@ export class TetrisServer {
 
     rooms
 
+    /**
+     * @type {[gamemode: string]: {[id: string]: RoomIdentifier}}
+     */
     roomHandlerMap
+
+    GAMEMODE_HANDLER_MAP
 
     constructor(io) {
         this.players = {}
@@ -233,6 +233,12 @@ export class TetrisServer {
             "DEATHMATCH": {}
         }
         this.roomHandlerMap = {}
+        
+        this.GAMEMODE_HANDLER_MAP = {
+            "SURVIVAL": SurvivalHandler,
+            "DEATHMATCH": DeathmatchHandler
+        }
+        // she var on my let till i const
 
         let context = this
 
@@ -264,6 +270,37 @@ export class TetrisServer {
                 }
             })
         })
+    }
+
+    deleteRoom(gamemode, id) {
+        delete this.rooms[gamemode][id]
+        this.updateBrowsingPlayers()
+    }
+
+    createRoom(gamemode, roomData) {
+        if (!this.rooms[gamemode]) this.rooms[gamemode] = {}
+
+        let roomID = crypto.randomUUID()
+
+        while (this.rooms[gamemode][roomID]) {
+            roomID = crypto.randomUUID()
+        }
+
+        roomData.id = roomID 
+        roomData.currentPlayers = 1
+
+        this.rooms[gamemode][roomID] = roomData
+
+        let handler = new this.GAMEMODE_HANDLER_MAP[gamemode](gamemode, roomID, this)
+
+        if (!this.roomHandlerMap[gamemode]) this.roomHandlerMap[gamemode] = {}
+
+        this.roomHandlerMap[gamemode][roomID] = handler
+
+        return {
+            id: roomID,
+            gamemode
+        }
     }
 
     updateBrowsingPlayers() {
@@ -311,15 +348,40 @@ class RoomHandler {
     id
     server
     
+    /**
+     * @type {[id: string]: Player}
+     */
+    players
+    
     constructor(gamemode, id, tetrisServer) {
         if (this.constructor == RoomHandler) {  
             throw new Error("Abstract classes can't be instantiated.")
+        }
+
+        this.gamemode = gamemode
+        this.id = id
+        this.server = tetrisServer
+    }
+
+    playerJoined(player) {
+        this.players[player.id] = player
+    }
+
+    playerUpdated(player) {
+        for (const v of Object.entries(player)) {
+            this.players[player.id][v[0]] = v[1]
         }
     }
 }
 
 class SurvivalHandler extends RoomHandler {
-    constructor(gamemode, id) {
-        super(gamemode, id)
+    constructor(gamemode, id, tetrisServer) {
+        super(gamemode, id, tetrisServer)
+    }
+}
+
+class DeathmatchHandler extends RoomHandler {
+    constructor(gamemode, id, tetrisServer) {
+        super(gamemode, id, tetrisServer)
     }
 }

@@ -37,11 +37,11 @@
 </script>
 
 <div class="w-full h-full absolute top-0 left-0 bg-[rgb(51_51_51)] z-10">
-    <div class="space-x-4 h-[85%] border-b w-full overflow-auto flex firstBorder">
+    <div class="h-[85%] border-b w-full overflow-auto flex firstBorder">
         {#if formattedRoomData}
             {#each Object.entries(formattedRoomData) as gamemode}
                 <div class="w-[50%] h-full space-y-2 flex flex-col items-center  pt-4">
-                    <p class="pixel text-sm text-white">{gamemode[0]}</p>
+                    <p class="pixel text-sm text-white w-full border-b text-center pb-4">{gamemode[0]}</p>
                     <div class="flex flex-col w-[80%] h-full space-y-4">
                         {#each gamemode[1] as room}
                             <Room {client} {room}/>
