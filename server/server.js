@@ -77,34 +77,67 @@ const CLIENT_EVENTS = {
             instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", toSend)
         }
     ],
-    "LEAVE_ROOM": [
-        (instance, socket, ...data) => {
-            let leavingPlayer = instance.players[socket.id]
+    "LEAVING_ROOM": [
+        (instance, socket, player, ...data) => {
+            let leavingPlayer = player
 
             // if the player's socket has closed before its even sent a init to the server dip outta there
             if (!leavingPlayer) return
-            if (!leavingPlayer.room) return
     
-            console.log(`Player [ID ${socket.id}|${leavingPlayer.name}] is leaving the game.`)
+            console.log(`Player [ID ${socket.id}|${leavingPlayer.name}] is leaving a room.`)
+
+            let id = instance.playerRoomMap[socket.id].id
+            let gamemode = instance.playerRoomMap[socket.id].gamemode
 
             let toSend = Object.assign({}, leavingPlayer)
             delete toSend.socket
             toSend.id = socket.id
 
-            socket.leave(`room-${leavingPlayer.room.id}`)
-            socket.join(`browsing`)
-
-            let roomID = instance.playerRoomMap[socket.id]
+            instance.updateOtherPlayers(socket.id, "PLAYER_LEAVING", toSend)
 
             instance.rooms[gamemode][id].currentPlayers -= 1
 
             if (instance.rooms[gamemode][id].currentPlayers < 1) {
                 delete instance.rooms[gamemode][id]
+                instance.updateBrowsingPlayers()
             }
 
-            delete instance.playerRoomMap[socket.id]
+            socket.leave(`room-${id}`)
+            socket.join(`browsing`)
 
-            instance.updateOtherPlayers(socket.id, "PLAYER_LEAVING", toSend)
+            delete instance.playerRoomMap[socket.id]
+        }
+    ],
+    "LEAVING_SERVER": [
+        (instance, socket, player, ...data) => {
+            let leavingPlayer = player
+
+            // if the player's socket has closed before its even sent a init to the server dip outta there
+            if (!leavingPlayer) return
+    
+            console.log(`Player [ID ${socket.id}|${leavingPlayer.name}] is leaving the server.`)
+
+            if (instance.playerRoomMap[socket.id]) {
+                let id = instance.playerRoomMap[socket.id].id
+                let gamemode = instance.playerRoomMap[socket.id].gamemode
+
+                instance.rooms[gamemode][id].currentPlayers -= 1
+
+                if (instance.rooms[gamemode][id].currentPlayers < 1) {
+                    delete instance.rooms[gamemode][id]
+                    instance.updateBrowsingPlayers()
+                }
+
+                let toSend = Object.assign({}, leavingPlayer)
+                delete toSend.socket
+                toSend.id = socket.id
+    
+                instance.updateOtherPlayers(socket.id, "PLAYER_LEAVING", toSend)
+    
+                socket.leave(`room-${id}`)
+
+                delete instance.playerRoomMap[socket.id]
+            }
 
             delete instance.players[socket.id]
         }
@@ -187,13 +220,19 @@ export class TetrisServer {
 
     rooms
 
+    roomHandlerMap
+
     constructor(io) {
         this.players = {}
 
         this.io = io
 
         this.playerRoomMap = {}
-        this.rooms = {}
+        this.rooms = {
+            "SURVIVAL": {},
+            "DEATHMATCH": {}
+        }
+        this.roomHandlerMap = {}
 
         let context = this
 
@@ -249,7 +288,7 @@ export class TetrisServer {
             console.warn("Room undefined!")
             return
         }
-        
+
         let players = Array.from(this.io.sockets.adapter.rooms.get(`room-${room}`))
 
         for (const player of players) {
@@ -264,5 +303,23 @@ export class TetrisServer {
 
             this.io.of("/").sockets.get(player).emit(event, data)
         }
+    }
+}
+
+class RoomHandler {
+    gamemode
+    id
+    server
+    
+    constructor(gamemode, id, tetrisServer) {
+        if (this.constructor == RoomHandler) {  
+            throw new Error("Abstract classes can't be instantiated.")
+        }
+    }
+}
+
+class SurvivalHandler extends RoomHandler {
+    constructor(gamemode, id) {
+        super(gamemode, id)
     }
 }

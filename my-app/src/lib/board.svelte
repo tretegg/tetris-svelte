@@ -3,6 +3,8 @@
     import { onMount } from "svelte";
     import type { Player } from "./client/client";
     import OtherNext from "./otherNext.svelte";
+    import { flip } from 'svelte/animate';
+
     /// schumnky
     let CELLSIZE = 20;
 

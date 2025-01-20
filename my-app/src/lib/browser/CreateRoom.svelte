@@ -10,12 +10,9 @@
     let maxPlayers: HTMLInputElement
     let gamemodeSelector: HTMLSelectElement
 
-    let dispatch = createEventDispatcher()
-
     function validate(): (boolean|string)[] {
         let name = roomName.value
         let maxplrs = parseInt(maxPlayers.value)
-        let gamemode = gamemodeSelector.value
 
         if ((name.trim().length > 20) || name.length < 4) return [false, "Name is too long/short"]
         if (maxplrs > 8 || maxplrs < 1) return [false, "Max Players is too big/small"]
@@ -41,8 +38,6 @@
         let gamemode = gamemodeSelector.value as GameModes
 
         client.createRoom(gamemode, name, maxplrs)
-
-        dispatch("roomCreated")
 
         show = false
     }

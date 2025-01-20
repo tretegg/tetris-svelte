@@ -2,8 +2,8 @@ import { io } from 'socket.io-client'
 import type { Socket } from "socket.io-client"
 import _ from "lodash";
 
-export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING" | "ROOMS" | "ROOM_JOINED"
-export type ClientEvents = "PLAYER_UPDATE" | "ROOMS" | "ROOM_JOINED"
+export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING" | "ROOMS" | "ROOM_JOINED" | "PLAYER_LEAVING"
+export type ClientEvents = "PLAYER_UPDATE" | "ROOMS" | "ROOM_JOINED" | "LEAVING_ROOM"
 
 export type Shape = number[][];
 
@@ -123,7 +123,10 @@ const Events: {[eventName in Events]: eventHandler[]} = {
     "PLAYER_LEAVING": [
         (client, _socket, player) => {
             console.log(`Player [ID ${player.id}|${player.name}] left the game.`)
+
             delete client.otherPlayers[player.id]
+            
+            client.ClientEvent("PLAYER_UPDATE", client.otherPlayers)
         }
     ],
     "ROOMS": [
@@ -143,7 +146,7 @@ const Events: {[eventName in Events]: eventHandler[]} = {
 
             client.ClientEvent("ROOM_JOINED", room)
         }
-    ]
+    ],
 }
 
 enum PLAYER_STATE {
@@ -247,6 +250,8 @@ export class TetrisClient {
     }
 
     ClientEvent(eventName: ClientEvents, data: any) {
+        if (!this.clientEventHooks[eventName]) return
+
         this.clientEventHooks[eventName].forEach(c => c(data))
     }
 
@@ -261,15 +266,30 @@ export class TetrisClient {
             return
         }
 
-        this.socket.emit("LEAVING_GAME", {
-            player: this.player
-        } as LeavingData)
-        
+        this.socket.emit("LEAVING_SERVER", this.player)
+
         this.socket.close()
+
+        this.otherPlayers = {}
 
         delete this.socket
 
         this.connectionEstablished = false
+    }
+
+    leaveGame() {
+        if (!this.socket) return
+        if (!this.currentRoom) return
+
+        this.socket.emit("LEAVING_ROOM", this.player)
+
+        delete this.currentRoom
+
+        this.otherPlayers = {}
+
+        this.playerState = PLAYER_STATE.BROWSING
+
+        this.ClientEvent("LEAVING_ROOM", {})
     }
 
     /**
@@ -290,7 +310,7 @@ export class TetrisClient {
         if (!this.socket) return
         if (!this.currentRoom) return
 
-        console.log("Syncing...")
+        //console.log("Syncing...")
 
         this.sendEvent("PLAYER_UPDATE", this.player as PlayerUpdateData)
         this.playerUpdated = false

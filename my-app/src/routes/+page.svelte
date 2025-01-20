@@ -328,7 +328,9 @@
     }
 
     function updateLevel() {
-        level = Math.floor(totalClears / 10) + 1;
+        if (gameMode == "DEATHMATCH") {
+            level = Math.floor(totalClears / 10) + 1;
+        }
         speed = level * 1.2;
     }
 
@@ -605,7 +607,10 @@
                                         if (direction == "down") piece.grounded = true; 
                                         if (direction == "down") newPiece();
                                         if (piece.y == 0 && direction == "down") {
-                                            if (client) client.endSession()
+                                            if (client) client.leaveGame()
+
+                                            gameOpened = true
+                                            browsing = true  
                                             
                                             reset();
 
@@ -705,7 +710,7 @@
     let gameOpened: boolean = false
     let browsing: boolean = false
     let gameOver: boolean = false
-    let gameMode: "SURVIVAL" | "DEATHMATCH"
+    let gameMode: "SURVIVAL" | "DEATHMATCH" = "SURVIVAL";
 
     function reset() {
         if (!canStart) return
@@ -765,8 +770,14 @@
         clock = minString + ":" + secString;
     }
 
+    let clockIncrement: NodeJS.Timeout
+
     function startClock() {
-        setInterval(increment, 1000)
+        if (clockIncrement) {
+            clearInterval(clockIncrement)
+            time = 0;
+        }
+        clockIncrement = setInterval(increment, 1000)
     }
 
     import.meta.hot?.on("vite:beforeUpdate", () => {
@@ -777,12 +788,13 @@
 </script>
 
 <link
-  href="https://fonts.googleapis.com/css?family=Press+Start+2P"
-  rel="stylesheet"
+    href="https://fonts.googleapis.com/css?family=Press+Start+2P"
+    rel="stylesheet"
 />
 
 <svelte:window 
     on:keydown={(e) => {
+        if (!gameOpened || browsing) return
         if (pieces.length > 0) e.preventDefault();
         move(e.key);
     }}
@@ -831,8 +843,17 @@
 
     <div class="flex flex-row items-start mt-4">
         <!-- Held Piece Section -->
-        <div class="flex flex-col items-center mr-4">
+        <div class="flex flex-col items-center mr-4 relative">
             <HeldPiece piece={heldTetromino} />
+
+            
+            {#if otherPlayers}
+            <div class="w-full h-full pointer-events-none">
+                {#each Object.entries(otherPlayers) as player}
+                    <OtherPlayers player={player[1]} />
+                {/each}
+            </div>
+            {/if}
         </div>
         <!-- Canvas and Score -->
         <div class="relative w-fit h-fit">
@@ -861,14 +882,6 @@
         <button on:click={() => showSettings = !showSettings}>
             <img src="./settings.svg" alt="settings" class="w-[48px] h-[48px] mt-3 mr-3 pointer-events-auto invert aspect-square">
         </button>
-    </div>
-{/if}
-
-{#if otherPlayers}
-    <div class="w-full h-full absolute top-0 left-0 pointer-events-none">
-        {#each Object.entries(otherPlayers) as player}
-            <OtherPlayers player={player[1]} />
-        {/each}
     </div>
 {/if}
 

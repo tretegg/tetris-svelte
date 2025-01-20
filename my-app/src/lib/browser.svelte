@@ -37,18 +37,18 @@
 </script>
 
 <div class="w-full h-full absolute top-0 left-0 bg-[rgb(51_51_51)] z-10">
-    <div class="space-x-4 h-[85%] border-b w-full overflow-auto">
+    <div class="space-x-4 h-[85%] border-b w-full overflow-auto flex firstBorder">
         {#if formattedRoomData}
-            <div class="w-[50%] h-full space-y-2 flex flex-col items-center border-r pt-4">
-                {#each Object.entries(formattedRoomData) as gamemode}
+            {#each Object.entries(formattedRoomData) as gamemode}
+                <div class="w-[50%] h-full space-y-2 flex flex-col items-center  pt-4">
                     <p class="pixel text-sm text-white">{gamemode[0]}</p>
                     <div class="flex flex-col w-[80%] h-full space-y-4">
                         {#each gamemode[1] as room}
                             <Room {client} {room}/>
                         {/each}
                     </div>
-                {/each}
-            </div>
+                </div>
+            {/each}
         {/if}
     </div>
     <div class="w-full h-[15%] py-4 pl-2">
@@ -59,3 +59,9 @@
 
     <CreateRoom on:roomCreated {client} bind:show={showRoomCreator}/>
 </div>
+
+<style lang='postcss'>
+    .firstBorder > :first-child {
+        @apply border-r;
+    }
+</style>
