@@ -139,6 +139,11 @@
 
             startGame()
         })
+
+        client.hookClientEvent("ROOM:TIMER_UPDATE", (roomTime: number) => {
+            time = roomTime
+            formatTime()
+        })
     });
 
     function log () {
@@ -370,6 +375,7 @@
     }
 
     function updateScore(clearedLines: number) {
+        let currentScore = score;
         if (clearedLines > 0) {
             if (clearedLines === 1) {
                 score += Math.floor(100 * level);
@@ -383,9 +389,28 @@
         }
         totalClears += clearedLines
 
+        if (score != currentScore) {
+            let scoreDifference = score - currentScore;
+            announceScore(scoreDifference);
+        }
+
         updateLevel();
 
         if (client) client.updateScore(score)
+    }
+
+    let scoreChanged: boolean = false;
+    let scoreAnnouncement: number = 0;
+
+    function announceScore(score: number) {
+        scoreAnnouncement = score
+
+        scoreChanged = true
+
+        setTimeout(() => {
+            scoreChanged = false
+        }, 2000);
+
     }
 
     let announceLevel = false
@@ -518,7 +543,6 @@
             available = false;
         }
 
-        // Align piece placement with grid size
         pieces.push({
             x: Math.floor((canvas.width / CELLSIZE - nextPiece[0].shape[0].length) / 2), // Adjust for grid width
             y: 0,
@@ -794,8 +818,6 @@
     let gameOver: boolean = false
     let gameMode: "SURVIVAL" | "DEATHMATCH" = "SURVIVAL";
 
-    $: console.log("GAMEMODE:", gameMode)
-
     function reset() {
         if (!canStart) return
 
@@ -806,7 +828,6 @@
         speed = 1;
         score = 0;
         totalClears = 0;
-        startClock()
 
         if (client) {
             client.updatePlayer({
@@ -845,8 +866,7 @@
         browsing = true  
     }
 
-    function increment() {
-        time++;
+    function formatTime() {
         let timeSecs = Math.floor(time % 60) 
         let timeMins = Math.floor(time / 60)
         let secString = timeSecs < 10 ? "0" + timeSecs : timeSecs
@@ -856,14 +876,6 @@
     }
 
     let clockIncrement: NodeJS.Timeout
-
-    function startClock() {
-        if (clockIncrement) {
-            clearInterval(clockIncrement)
-            time = 0;
-        }
-        clockIncrement = setInterval(increment, 1000)
-    }
 
     import.meta.hot?.on("vite:beforeUpdate", () => {
         if (client) {
@@ -928,6 +940,14 @@
         </div>
     {/if}
 
+    {#if scoreChanged && !browsing && gameOpened}
+        <div transition:slide={{axis: "y", duration: 1000}} class="absolute top-30 w-full flex justify-center z-20">
+            <div class="bg-black text-white pixel text-3xl p-2">
+                +{scoreAnnouncement} Score!
+            </div>
+        </div>
+    {/if}
+
     <!-- Title Section -->
     <div class="flex flex-col ml-2 mt-2">
         <p class="pixel text-white text-4xl mt-2">TETRIS</p>
@@ -939,7 +959,6 @@
         <div class="flex flex-col items-center mr-4 relative">
             <HeldPiece piece={heldTetromino} />
 
-            
             {#if otherPlayers}
             <div class="w-full h-full pointer-events-none">
                 {#each Object.entries(otherPlayers) as player, index}    

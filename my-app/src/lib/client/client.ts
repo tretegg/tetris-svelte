@@ -3,7 +3,11 @@ import type { Socket } from "socket.io-client"
 import _ from "lodash";
 
 export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING" | "ROOMS" | "ROOM_JOINED" | "PLAYER_LEAVING"
-export type ClientEvents = "PLAYER_UPDATE" | "ROOMS" | "ROOM_JOINED" | "LEAVING_ROOM"
+export type ServerRoomEvents = "ROOM:TIMER_UPDATE" 
+
+export type RoomEvents = "ROOM:TIMER_UPDATE"
+export type SocketEvents = "PLAYER_UPDATE" | "ROOMS" | "ROOM_JOINED" | "LEAVING_ROOM" 
+export type ClientEvents = RoomEvents | SocketEvents
 
 export type Shape = number[][];
 
@@ -94,6 +98,67 @@ export type eventHandler = ((client: TetrisClient, socket: Socket, ...data: any 
 export type GameModes = "SURVIVAL" | "DEATHMATCH"
 export const GAMEMODES: GameModes[] = ["SURVIVAL", "DEATHMATCH"]
 
+class ClientRoomHandler {
+    gamemode: string
+    id: string
+    client: TetrisClient
+    
+    players: {[id: string]: Player}
+    
+    constructor(gamemode: string, id: string, client: TetrisClient) {
+        if (this.constructor == ClientRoomHandler) {  
+            throw new Error("Abstract classes can't be instantiated.")
+        }
+
+        this.players = client.otherPlayers
+
+        client.hookClientEvent("PLAYER_UPDATE", (p: {[id:string]: Player}) => {
+            if (!this) return
+            
+            this.players = p
+        })
+
+        client._roomHookServerEvent("ROOM:TIMER_UPDATE", (data: any) => {
+            console.log("TIMER_UPDATE:", data)
+
+            this.event("ROOM:TIMER_UPDATE", data)
+        })
+
+        this.gamemode = gamemode
+        this.id = id
+        this.client = client
+    }
+
+    sync() {
+        throw new Error("Function Not Implemented!")
+    }
+
+    private event(eventName: RoomEvents, data: any) {
+        this.client._passUpEvent(eventName, data)
+    }
+}
+
+class SurvivalHandler extends ClientRoomHandler {
+    // TODO: timer is synced
+    
+    constructor(gamemode: string, id: string, client: TetrisClient) {
+        super(gamemode, id, client)
+    }
+}
+
+class DeathmatchHandler extends ClientRoomHandler {
+    // TODO: send lines
+
+    constructor(gamemode: string, id: string, client: TetrisClient) {
+        super(gamemode, id, client)
+    }
+}
+
+const GAMEMODE_MAP: {[id in GameModes]: typeof ClientRoomHandler} = {
+    "SURVIVAL": SurvivalHandler,
+    "DEATHMATCH": DeathmatchHandler
+}
+
 const Events: {[eventName in Events]: eventHandler[]} = {
     "DEBUG": [
         (_client: TetrisClient, _socket: Socket, ...data: any) => {
@@ -140,12 +205,15 @@ const Events: {[eventName in Events]: eventHandler[]} = {
     ],
     "ROOM_JOINED": [
         (client, _socket, room: Room, gamemode: GameModes) => {
-            console.log("Room Joined!", room)
+            console.log(`Room ${room.name} Joined!`)
 
-            client.currentRoom = room
+            if (!GAMEMODE_MAP[gamemode]) {
+                console.error("Invalid gamemode:", gamemode)
+                return
+            }
+
+            client.currentRoom = new GAMEMODE_MAP[gamemode](gamemode, room.id, client)
             client.playerState = PLAYER_STATE.PLAYING
-
-            console.log("current!:", client.currentGameMode)
 
             // @ts-ignore
             let sendingRoom: Room & {gamemode: GameModes} = room
@@ -166,14 +234,20 @@ export class TetrisClient {
 
     private socket?: Socket
     private playerUpdated: boolean = false
+
     connectionEstablished: boolean = false
+
     eventHooks: {[eventName in Events]: ((...data: any | undefined) => void)[]}
     clientEventHooks: {[eventName in ClientEvents]: ((...data: any | undefined) => void)[]}
+    roomEventHooks?:  {[eventName in ServerRoomEvents]: ((...data: any | undefined) => void)[]}
+
     otherPlayers: {[id: string]: Player}
     playerState: PLAYER_STATE
+
     rooms?: Rooms
-    currentRoom?: Room
-    testSessionEnded: boolean = false
+
+    currentRoom?: ClientRoomHandler
+
     currentGameMode?: GameModes
 
     player: Player
@@ -292,6 +366,7 @@ export class TetrisClient {
         this.socket.emit("LEAVING_ROOM", this.player)
 
         delete this.currentRoom
+        delete this.roomEventHooks
 
         this.otherPlayers = {}
 
@@ -304,8 +379,7 @@ export class TetrisClient {
      * Update `TetrisClient`'s player data with the server.
      */
     syncWithServer() {
-        if(this.testSessionEnded) return
-        
+
         // console.log({
         //     playerUpdated: this.playerUpdated,
         //     connectionEstablished: this.connectionEstablished,
@@ -376,6 +450,9 @@ export class TetrisClient {
             return
         }
 
+        // @ts-ignore
+        this.roomEventHooks = {}
+
         this.socket.emit("REQUEST_CREATE_ROOM", {
             gamemode,
             name,
@@ -386,7 +463,22 @@ export class TetrisClient {
     joinRoom(gamemode: string, id: string) {
         if (!this.socket) return
 
+        // @ts-ignore
+        this.roomEventHooks = {}
+
         this.socket.emit("JOIN_ROOM", {gamemode, roomID: id})
     }
-}
 
+    _passUpEvent(eventName: RoomEvents, data: any) {
+        if (!this.clientEventHooks[eventName]) return
+
+        this.clientEventHooks[eventName].forEach(c => c(data))
+    }
+
+    _roomHookServerEvent(eventName: ServerRoomEvents, callback: (data: any) => void) {
+        if (!this.roomEventHooks) return
+        if (!this.roomEventHooks[eventName]) this.roomEventHooks[eventName] = []
+
+        this.roomEventHooks[eventName].push(callback)
+    }
+}

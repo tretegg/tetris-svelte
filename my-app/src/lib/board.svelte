@@ -116,10 +116,9 @@
     </div>
     
     <div class="flex">
-        <div class="absolute right-2 opacity-40">
+        <canvas bind:this={canvas} class="border-2 bg-black"></canvas>
+        <div class="ml-2">
             <OtherNext pieces={player.nextPieces} />
         </div>
-        
-        <canvas bind:this={canvas} class="border-2 bg-black"></canvas>    
     </div>
 </div>

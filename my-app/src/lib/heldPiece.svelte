@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { type heldPiece, type Shape } from "$lib/client/client";
+    import { flip } from "svelte/animate";
 
     export let piece: heldPiece | undefined;
     let canvas: HTMLCanvasElement;

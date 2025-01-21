@@ -190,7 +190,7 @@ const CLIENT_EVENTS = {
                 gamemode
             }
 
-            socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID])
+            socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID], gamemode)
 
             instance.updateBrowsingPlayers()
         }
@@ -273,6 +273,9 @@ export class TetrisServer {
     }
 
     deleteRoom(gamemode, id) {
+        this.roomHandlerMap[gamemode][id].destroy()
+
+        delete this.roomHandlerMap[gamemode][id]
         delete this.rooms[gamemode][id]
         this.updateBrowsingPlayers()
     }
@@ -348,6 +351,8 @@ class RoomHandler {
     id
     server
     
+    // TODO: add built in event handlers for room events then pass them down from the server
+
     /**
      * @type {[id: string]: Player}
      */
@@ -363,6 +368,10 @@ class RoomHandler {
         this.server = tetrisServer
     }
 
+    destroy() {
+        throw new Error("Destroy not implemented.")
+    }
+
     playerJoined(player) {
         this.players[player.id] = player
     }
@@ -372,11 +381,32 @@ class RoomHandler {
             this.players[player.id][v[0]] = v[1]
         }
     }
+
+    updatePlayers(event, data) {
+        this.server.io.of("/").to(`room-${this.id}`).emit(event, data)
+    }
 }
 
 class SurvivalHandler extends RoomHandler {
+    timer
+    timerId
+
     constructor(gamemode, id, tetrisServer) {
         super(gamemode, id, tetrisServer)
+
+        this.timer = 0
+
+        let current = this
+
+        this.timerId = setInterval(() => {
+            current.timer += 1
+
+            current.updatePlayers("ROOM:TIMER_UPDATE", current.timer)
+        }, 1000)
+    }
+
+    destroy() {
+        clearInterval(this.timerId)
     }
 }
 
