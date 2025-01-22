@@ -118,12 +118,6 @@ class ClientRoomHandler {
             this.players = p
         })
 
-        client._roomHookServerEvent("ROOM:TIMER_UPDATE", (data: any) => {
-            console.log("TIMER_UPDATE:", data)
-
-            this.event("ROOM:TIMER_UPDATE", data)
-        })
-
         this.gamemode = gamemode
         this.id = id
         this.client = client
@@ -133,7 +127,7 @@ class ClientRoomHandler {
         throw new Error("Function Not Implemented!")
     }
 
-    private event(eventName: RoomEvents, data: any) {
+    event(eventName: RoomEvents, data: any) {
         this.client._passUpEvent(eventName, data)
     }
 }
@@ -143,6 +137,12 @@ class SurvivalHandler extends ClientRoomHandler {
     
     constructor(gamemode: string, id: string, client: TetrisClient) {
         super(gamemode, id, client)
+
+        client._roomHookServerEvent("ROOM:TIMER_UPDATE", (data: any) => {
+            console.log("TIMER_UPDATE:", data)
+
+            this.event("ROOM:TIMER_UPDATE", data)
+        })
     }
 }
 
@@ -280,6 +280,15 @@ export class TetrisClient {
                 this.socket!.on(event[0], (...data: any|undefined)=>{
                     callback(client, this.socket!, ...data)
                 })
+            }
+        })
+
+        this.socket.onAny((event: RoomEvents, ...data) => {
+            if (!this.roomEventHooks) return
+            if (!this.roomEventHooks[event]) return
+
+            for (const callback of this.roomEventHooks[event]) {
+                callback(...data)
             }
         })
 
@@ -480,5 +489,11 @@ export class TetrisClient {
         if (!this.roomEventHooks[eventName]) this.roomEventHooks[eventName] = []
 
         this.roomEventHooks[eventName].push(callback)
+    }
+
+    died() {
+        if (!this.socket) return
+
+        this.socket.emit("PLAYER_DIED", this.player)
     }
 }

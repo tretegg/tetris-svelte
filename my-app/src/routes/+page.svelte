@@ -712,12 +712,8 @@
                                         if (direction == "down" && !piece.isGhost) piece.grounded = true; 
                                         if (direction == "down" && !piece.isGhost) newPiece();
                                         if (piece.y == 0 && direction == "down") {
-                                            if (client) client.leaveGame()
 
-                                            gameOpened = true
-                                            browsing = true  
-                                            
-                                            reset();
+                                            onDeath()
 
                                             return true;
                                         }
@@ -875,6 +871,26 @@
         updateLevel();
     }
 
+    function 
+    onDeath () {                                          
+        //if (client) client.leaveGame()
+
+        //gameOpened = true
+        //browsing = true  
+
+        if (client) client.died()
+
+        gameOver = true
+
+        pieces = [];
+        nextPiece = [];
+        heldTetromino = undefined;
+        grid = new Array(10).fill(0).map(() => new Array(20).fill(0));
+        speed = 1;
+        totalClears = 0;
+
+        // reset();
+    }
     let clockIncrement: NodeJS.Timeout
 
     import.meta.hot?.on("vite:beforeUpdate", () => {
@@ -932,7 +948,8 @@
         <Browser {client} bind:rooms/>
     {/if}
 
-    {#if announceLevel && !browsing && gameOpened}
+    <!-- Level up announcement -->
+    {#if announceLevel && !browsing && gameOpened && !gameOver}
         <div transition:slide={{axis: "y", duration: 500}} class="absolute top-0 w-full h-full flex items-center justify-center z-20">
             <div class="bg-black text-white pixel text-3xl p-2">
                 Level up!
@@ -940,7 +957,19 @@
         </div>
     {/if}
 
-    {#if scoreChanged && !browsing && gameOpened}
+    <!-- Game Over announcement -->
+    {#if gameOver && !browsing && gameOpened}
+        <div transition:slide={{axis: "y", duration: 500}} class="absolute top-0 w-full h-full flex items-center justify-center z-20">
+            <div class="bg-black text-white pixel text-3xl p-2">
+                Game Over!
+                <br>
+                Final Score: {score}
+            </div>
+        </div>
+    {/if}
+
+    <!-- Score announcement -->
+    {#if scoreChanged && !browsing && gameOpened && !gameOver}
         <div transition:slide={{axis: "y", duration: 1000}} class="absolute top-30 w-full flex justify-center z-20">
             <div class="bg-black text-white pixel text-3xl p-2">
                 +{scoreAnnouncement} Score!

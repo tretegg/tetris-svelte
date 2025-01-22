@@ -194,6 +194,17 @@ const CLIENT_EVENTS = {
 
             instance.updateBrowsingPlayers()
         }
+    ],
+    "PLAYER_DIED": [
+        (instance, socket, player, ...data) => {
+            if (!instance.playerRoomMap[socket.id]) return
+
+            let playerRoom = instance.playerRoomMap[socket.id]
+
+            if (!instance.roomHandlerMap[playerRoom.gamemode][playerRoom.id]) return
+            
+            instance.roomHandlerMap[playerRoom.gamemode][playerRoom.id].gameEnded("PLAYER_DIED", player)
+        }
     ]
 }
 
@@ -372,6 +383,10 @@ class RoomHandler {
         throw new Error("Destroy not implemented.")
     }
 
+    gameEnded() {
+        throw new Error("gameEnded not implemented.")
+    }
+
     playerJoined(player) {
         this.players[player.id] = player
     }
@@ -408,10 +423,10 @@ class SurvivalHandler extends RoomHandler {
     destroy() {
         clearInterval(this.timerId)
     }
-}
 
-class DeathmatchHandler extends RoomHandler {
-    constructor(gamemode, id, tetrisServer) {
-        super(gamemode, id, tetrisServer)
+    gameEnded() {
+        console.log("Game Ended!")
+    }
+     tetrisServer)
     }
 }

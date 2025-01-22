@@ -51,8 +51,8 @@
             {/each}
         {/if}
     </div>
-    <div class="w-full h-[15%] py-4 pl-2">
-        <button on:click={()=>{showRoomCreator = true;}} class="w-[20%] h-full border text-white pixel">
+    <div class="w-full h-[15%] py-4 pl-4 flex items-center">
+        <button on:click={()=>{showRoomCreator = true;}} class=" px-8 py-8 transition-all duration-500 ease-in-out hover:scale-105 active:scale-95 border text-white pixel">
             Create Room
         </button>
     </div>
