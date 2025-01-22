@@ -427,6 +427,10 @@ class SurvivalHandler extends RoomHandler {
     gameEnded() {
         console.log("Game Ended!")
     }
-     tetrisServer)
+}
+
+class DeathmatchHandler extends RoomHandler {
+    constructor(gamemode, id, tetrisServer) {
+        super(gamemode, id, tetrisServer)
     }
 }
