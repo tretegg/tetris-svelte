@@ -1,6 +1,12 @@
 # Tetris clone made with Svelte, TypeScript, JavaScript and TailwindCSS
 
-## Usage
+## Install
 Install [Node.js](https://nodejs.org/en).
-Download the codebase.
-Navigate to the directory in the terminal.
+</br>
+& download the codebase.
+## Usage
+Navigate to the directory in your terminal.
+</br>
+Run this command to install the necessary packages
+</br>
+```npm i```
