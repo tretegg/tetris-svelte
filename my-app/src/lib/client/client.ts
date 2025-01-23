@@ -3,9 +3,9 @@ import type { Socket } from "socket.io-client"
 import _ from "lodash";
 
 export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING" | "ROOMS" | "ROOM_JOINED" | "PLAYER_LEAVING"
-export type ServerRoomEvents = "ROOM:TIMER_UPDATE" 
+export type ServerRoomEvents = "ROOM:TIMER_UPDATE" | "ROOM:GAME_ENDED" | "ROOM:GAME_RESTARTED"
 
-export type RoomEvents = "ROOM:TIMER_UPDATE"
+export type RoomEvents = "ROOM:TIMER_UPDATE"| "ROOM:GAME_ENDED" | "ROOM:GAME_RESTARTED"
 export type SocketEvents = "PLAYER_UPDATE" | "ROOMS" | "ROOM_JOINED" | "LEAVING_ROOM" 
 export type ClientEvents = RoomEvents | SocketEvents
 
@@ -99,6 +99,8 @@ export type GameModes = "SURVIVAL" | "DEATHMATCH"
 export const GAMEMODES: GameModes[] = ["SURVIVAL", "DEATHMATCH"]
 
 class ClientRoomHandler {
+    // todo: handle joining while the game is over
+
     gamemode: string
     id: string
     client: TetrisClient
@@ -133,8 +135,6 @@ class ClientRoomHandler {
 }
 
 class SurvivalHandler extends ClientRoomHandler {
-    // TODO: timer is synced
-    
     constructor(gamemode: string, id: string, client: TetrisClient) {
         super(gamemode, id, client)
 
@@ -143,11 +143,22 @@ class SurvivalHandler extends ClientRoomHandler {
 
             this.event("ROOM:TIMER_UPDATE", data)
         })
+
+        client._roomHookServerEvent("ROOM:GAME_ENDED", ({ winner }) => {
+            console.log("GAME_ENDED:", winner)
+
+            this.event("ROOM:GAME_ENDED", winner)
+        })
+
+        client._roomHookServerEvent("ROOM:GAME_RESTARTED", ({}) => {
+
+            this.event("ROOM:GAME_RESTARTED", {})
+        })
     }
 }
 
 class DeathmatchHandler extends ClientRoomHandler {
-    // TODO: send lines
+    // TODO: finish 😔
 
     constructor(gamemode: string, id: string, client: TetrisClient) {
         super(gamemode, id, client)
@@ -495,5 +506,11 @@ export class TetrisClient {
         if (!this.socket) return
 
         this.socket.emit("PLAYER_DIED", this.player)
+    }
+
+    restartGame() {
+        if (!this.socket) return
+
+        this.socket.emit("RESTART_GAME", this.player)
     }
 }

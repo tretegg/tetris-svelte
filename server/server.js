@@ -108,6 +108,8 @@ const CLIENT_EVENTS = {
             socket.leave(`room-${id}`)
             socket.join(`browsing`)
 
+            instance.roomHandlerMap[gamemode][id].playerLeft(player)
+
             instance.updateBrowsingPlayers()
 
             delete instance.playerRoomMap[socket.id]
@@ -140,6 +142,11 @@ const CLIENT_EVENTS = {
     
                 socket.leave(`room-${id}`)
 
+                if (instance.roomHandlerMap[gamemode][id]) {
+                    instance.roomHandlerMap[gamemode][id].playerLeft(player)
+                    return
+                }
+
                 instance.updateBrowsingPlayers()
 
                 delete instance.playerRoomMap[socket.id]
@@ -169,6 +176,8 @@ const CLIENT_EVENTS = {
 
             socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID], gamemode)
 
+            instance.roomHandlerMap[gamemode][roomID].playerJoined(instance.players[socket.id])
+
             instance.updateBrowsingPlayers()
         } 
     ],
@@ -192,6 +201,8 @@ const CLIENT_EVENTS = {
 
             socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID], gamemode)
 
+            instance.roomHandlerMap[gamemode][roomID].playerJoined(instance.players[socket.id])
+
             instance.updateBrowsingPlayers()
         }
     ],
@@ -204,6 +215,17 @@ const CLIENT_EVENTS = {
             if (!instance.roomHandlerMap[playerRoom.gamemode][playerRoom.id]) return
             
             instance.roomHandlerMap[playerRoom.gamemode][playerRoom.id].gameEnded("PLAYER_DIED", player)
+        }
+    ],
+    "RESTART_GAME": [
+        (instance, socket, player, ...data) => {
+            if (!instance.playerRoomMap[socket.id]) return
+
+            let playerRoom = instance.playerRoomMap[socket.id]
+
+            if (!instance.roomHandlerMap[playerRoom.gamemode][playerRoom.id]) return
+            
+            instance.roomHandlerMap[playerRoom.gamemode][playerRoom.id].restart(player)
         }
     ]
 }
@@ -361,6 +383,7 @@ class RoomHandler {
     gamemode
     id
     server
+    ended
     
     // TODO: add built in event handlers for room events then pass them down from the server
 
@@ -377,18 +400,30 @@ class RoomHandler {
         this.gamemode = gamemode
         this.id = id
         this.server = tetrisServer
+        this.players = {}
+        this.ended = false
     }
 
     destroy() {
         throw new Error("Destroy not implemented.")
     }
 
-    gameEnded() {
+    gameEnded(event, player) {
         throw new Error("gameEnded not implemented.")
     }
 
+    // do the opposite of `destroy` if they decide to play again
+    restart() {
+        throw new Error("restart not implemented.")
+    }
+
+
     playerJoined(player) {
         this.players[player.id] = player
+    }
+
+    playerLeft(player) {
+        delete this.players[player.id]
     }
 
     playerUpdated(player) {
@@ -424,8 +459,42 @@ class SurvivalHandler extends RoomHandler {
         clearInterval(this.timerId)
     }
 
-    gameEnded() {
-        console.log("Game Ended!")
+    gameEnded(event, player) {
+        if (event == "PLAYER_DIED") {
+            this.destroy(this.timerId)
+
+            let winner = {
+                score: -1
+            }
+
+            for (const player of Object.entries(this.players)) {
+                if (player[1].score > winner.score) {
+                    winner = player[1]
+                }
+            }
+        
+            this.ended = true
+
+            this.updatePlayers("ROOM:GAME_ENDED", {
+                winner,
+            })
+        }
+    }
+
+    restart() {
+        if (!this.ended) return
+
+        this.timer = 0
+
+        this.timerId = setInterval(() => {
+            this.timer += 1
+
+            this.updatePlayers("ROOM:TIMER_UPDATE", this.timer)
+        }, 1000)
+
+        this.updatePlayers("ROOM:GAME_RESTARTED", {})
+
+        this.ended = false
     }
 }
 

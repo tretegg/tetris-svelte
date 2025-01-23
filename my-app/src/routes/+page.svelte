@@ -8,7 +8,7 @@
     import Settings from "$lib/settings.svelte";
     import Browser from "$lib/browser.svelte";
     import { flip } from "svelte/animate"
-    import { slide } from "svelte/transition";
+    import { fade, slide } from "svelte/transition";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
@@ -100,7 +100,8 @@
     let currentRoom: Room
 
     let lowerInterval: NodeJS.Timeout
-
+    let winner: Player
+    
     onMount(() => {
         if (!canvas) {
             console.error("Canvas element is not found!");
@@ -143,6 +144,18 @@
         client.hookClientEvent("ROOM:TIMER_UPDATE", (roomTime: number) => {
             time = roomTime
             formatTime()
+        })
+
+        client.hookClientEvent("ROOM:GAME_ENDED", (newWinner: Player) => {
+            winner = newWinner
+
+            time = 0
+            formatTime()
+        })
+
+        client.hookClientEvent("ROOM:GAME_RESTARTED", (newWinner: Player) => {
+            gameOver = false
+            reset()
         })
     });
 
@@ -871,8 +884,7 @@
         updateLevel();
     }
 
-    function 
-    onDeath () {                                          
+    function onDeath () {                                          
         //if (client) client.leaveGame()
 
         //gameOpened = true
@@ -965,10 +977,21 @@
     <!-- Game Over announcement -->
     {#if gameOver && !browsing && gameOpened}
         <div transition:slide={{axis: "y", duration: 500}} class="absolute top-0 w-full h-full flex items-center justify-center z-20">
-            <div class="bg-black text-white pixel text-3xl p-2">
-                Game Over!
-                <br>
-                Final Score: {score}
+            <div class="bg-black text-white py-4 text-center w-[40%] h-[40%] flex flex-col items-center justify-start ">
+                <p class=" pixel text-3xl text-center">
+                    GAME OVER!
+                </p>
+
+                {#if winner}
+                    <div transition:fade class="flex flex-col items-center justify-center mt-4">
+                        <p class="pixel text-lg">winner: {winner.name}</p>
+                        <p class="pixel">with a score of: {winner.score}</p>
+                    </div>
+                {/if}
+
+                <button on:click={()=>{if (client && gameOver) client.restartGame()}} class="mt-auto px-2 py-2 pixel text-lg border">
+                    Play Again
+                </button>
             </div>
         </div>
     {/if}
