@@ -917,6 +917,11 @@
         if (client) client.endSession()
     }}
 />
+
+<svelte:head>
+	<title>Schmunktris</title>
+</svelte:head>
+
 <div class="flex flex-col relative w-full h-full items-center justify-center"> 
 
     {#if !gameOpened}
