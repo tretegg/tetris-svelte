@@ -75,7 +75,7 @@ const CLIENT_EVENTS = {
             toSend.id = socket.id
 
             if (!toSend.grid) {
-                console.warn("player doesn't have grid!!!!")
+                console.warn("Grid not found on player update!", toSend)
             }
 
             instance.updateOtherPlayers(socket.id, "PLAYER_UPDATE", toSend)
@@ -227,6 +227,21 @@ const CLIENT_EVENTS = {
             
             instance.roomHandlerMap[playerRoom.gamemode][playerRoom.id].restart(player)
         }
+    ],
+    "SEND_LINES": [
+        (instance, socket, player, amount) => {
+            let playerRoom = instance.playerRoomMap[socket.id]
+
+            if (!playerRoom) return
+
+            if (playerRoom.gamemode != "DEATHMATCH") return
+
+            let handler = instance.roomHandlerMap[playerRoom.gamemode][playerRoom.id]
+
+            if (!handler) return           
+
+            handler.sendLines(socket.id, amount)
+        }
     ]
 }
 
@@ -353,14 +368,18 @@ export class TetrisServer {
     updateOtherPlayers(playerID, event, data) {
         let room = this.playerRoomMap[playerID]
 
-        if (!room) return
-
-        room = room.id
-
         if (!room) {
             console.warn("Room undefined!")
             return
         }
+
+        room = room.id
+
+        if (!room) {
+            console.warn("Room ID undefined!")
+            return
+        }
+
 
         let players = Array.from(this.io.sockets.adapter.rooms.get(`room-${room}`))
 
@@ -499,7 +518,65 @@ class SurvivalHandler extends RoomHandler {
 }
 
 class DeathmatchHandler extends RoomHandler {
+    timer
+    timerId
+
     constructor(gamemode, id, tetrisServer) {
         super(gamemode, id, tetrisServer)
+
+        this.timer = 0
+
+        this.timerId = setInterval(() => {
+            this.timer += 1
+
+            this.updatePlayers("ROOM:TIMER_UPDATE", this.timer)
+        }, 1000)
+    }
+
+    sendLines(id, amount) {
+        // console.log("relaying lines from:", player.name)
+        this.server.updateOtherPlayers(id, "ROOM:SEND_LINES", amount)
+    }
+
+    destroy() {
+        clearInterval(this.timerId)
+    }
+
+    gameEnded(event, player) {
+        if (event == "PLAYER_DIED") {
+            this.destroy(this.timerId)
+
+            let winner = {
+                score: -1
+            }
+
+            for (const player of Object.entries(this.players)) {
+                if (player[1].score > winner.score) {
+                    winner = player[1]
+                }
+            }
+        
+            this.ended = true
+
+            this.updatePlayers("ROOM:GAME_ENDED", {
+                winner,
+            })
+        }
+    }
+
+    restart() {
+        if (!this.ended) return
+
+        this.timer = 0
+
+        this.timerId = setInterval(() => {
+            this.timer += 1
+
+            this.updatePlayers("ROOM:TIMER_UPDATE", this.timer)
+        }, 1000)
+
+        this.updatePlayers("ROOM:GAME_RESTARTED", {})
+
+        this.ended = false
     }
 }

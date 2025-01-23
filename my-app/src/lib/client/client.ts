@@ -2,11 +2,11 @@ import { io } from 'socket.io-client'
 import type { Socket } from "socket.io-client"
 import _ from "lodash";
 
-export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING" | "ROOMS" | "ROOM_JOINED" | "PLAYER_LEAVING"
-export type ServerRoomEvents = "ROOM:TIMER_UPDATE" | "ROOM:GAME_ENDED" | "ROOM:GAME_RESTARTED"
+export type Events = "DEBUG" | "CLIENT_INIT" | "PLAYER_UPDATE" | "PLAYER_LEAVING" | "ROOMS" | "ROOM_JOINED" | "PLAYER_LEAVING" | "SEND_LINES"
+export type ServerRoomEvents = "ROOM:TIMER_UPDATE" | "ROOM:GAME_ENDED" | "ROOM:GAME_RESTARTED" | "ROOM:SEND_LINES"
 
-export type RoomEvents = "ROOM:TIMER_UPDATE"| "ROOM:GAME_ENDED" | "ROOM:GAME_RESTARTED"
-export type SocketEvents = "PLAYER_UPDATE" | "ROOMS" | "ROOM_JOINED" | "LEAVING_ROOM" 
+export type RoomEvents = "ROOM:TIMER_UPDATE"| "ROOM:GAME_ENDED" | "ROOM:GAME_RESTARTED" | "ROOM:RECIEVE_LINES"
+export type SocketEvents = "PLAYER_UPDATE" | "ROOMS" | "ROOM_JOINED" | "LEAVING_ROOM"
 export type ClientEvents = RoomEvents | SocketEvents
 
 export type Shape = number[][];
@@ -134,7 +134,7 @@ class ClientRoomHandler {
     }
 }
 
-class SurvivalHandler extends ClientRoomHandler {
+export class SurvivalHandler extends ClientRoomHandler {
     constructor(gamemode: string, id: string, client: TetrisClient) {
         super(gamemode, id, client)
 
@@ -151,17 +151,42 @@ class SurvivalHandler extends ClientRoomHandler {
         })
 
         client._roomHookServerEvent("ROOM:GAME_RESTARTED", ({}) => {
-
             this.event("ROOM:GAME_RESTARTED", {})
         })
     }
 }
 
-class DeathmatchHandler extends ClientRoomHandler {
-    // TODO: finish 😔
-
+export class DeathmatchHandler extends ClientRoomHandler {
     constructor(gamemode: string, id: string, client: TetrisClient) {
         super(gamemode, id, client)
+
+        client._roomHookServerEvent("ROOM:TIMER_UPDATE", (data: any) => {
+            console.log("TIMER_UPDATE:", data)
+
+            this.event("ROOM:TIMER_UPDATE", data)
+        })
+
+        client._roomHookServerEvent("ROOM:GAME_ENDED", ({ winner }) => {
+            console.log("GAME_ENDED:", winner)
+
+            this.event("ROOM:GAME_ENDED", winner)
+        })
+
+        client._roomHookServerEvent("ROOM:GAME_RESTARTED", ({}) => {
+            this.event("ROOM:GAME_RESTARTED", {})
+        })
+
+        client._roomHookServerEvent("ROOM:SEND_LINES", (amount: number) => {
+            this.client.ClientEvent("ROOM:RECIEVE_LINES", amount)
+        })
+    }
+
+    sendLines(amount: number)  {
+        console.log("Sending Lines:", amount)
+
+        if (!this.client.socket) return
+
+        this.client.sendEvent("SEND_LINES", this.client.player, amount)
     }
 }
 
@@ -233,6 +258,7 @@ const Events: {[eventName in Events]: eventHandler[]} = {
             client.ClientEvent("ROOM_JOINED", room)
         }
     ],
+    "SEND_LINES": []
 }
 
 enum PLAYER_STATE {
@@ -243,7 +269,7 @@ enum PLAYER_STATE {
 
 export class TetrisClient {
 
-    private socket?: Socket
+    socket?: Socket
     private playerUpdated: boolean = false
 
     connectionEstablished: boolean = false
@@ -294,7 +320,7 @@ export class TetrisClient {
             }
         })
 
-        this.socket.onAny((event: RoomEvents, ...data) => {
+        this.socket.onAny((event: ServerRoomEvents, ...data) => {
             if (!this.roomEventHooks) return
             if (!this.roomEventHooks[event]) return
 
@@ -317,13 +343,13 @@ export class TetrisClient {
     /** 
      * Sends an event to the server
      */
-    sendEvent(eventName: Events, data: any) {
+    sendEvent(eventName: Events, ...data: any) {
         if (!this.socket) {
             console.warn(`[TetrisClient] Trying to send event ${eventName} with ${data} without socket!`)
             return
         }
 
-        this.socket.emit(eventName, data)
+        this.socket.emit(eventName, ...data)
     }
 
     /**
@@ -361,8 +387,6 @@ export class TetrisClient {
      * Ends the Socket.io connection and annouces it to the server
      */
     endSession() {
-        console.log("ending session...")
-
         if (!this.socket) {
             console.warn("Trying to end session that doesn't have socket!!")
             return

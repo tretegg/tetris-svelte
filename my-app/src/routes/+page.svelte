@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece, type Player, type keybinds, type Rooms, type Room, type GameModes } from "$lib/client/client";
+    import { TetrisClient, type Piece, type Shape, type nextPieces, type heldPiece, type Player, type keybinds, type Rooms, type Room, type GameModes, DeathmatchHandler } from "$lib/client/client";
     import { onMount } from "svelte";
     import NextPiece from "$lib/nextPiece.svelte";
     import HeldPiece from "$lib/heldPiece.svelte";
@@ -149,13 +149,28 @@
         client.hookClientEvent("ROOM:GAME_ENDED", (newWinner: Player) => {
             winner = newWinner
 
+            console.log("game ended")
+
+            onDeath()
+
             time = 0
             formatTime()
         })
 
         client.hookClientEvent("ROOM:GAME_RESTARTED", (newWinner: Player) => {
             gameOver = false
+
+            console.log("game restarted")
+
             reset()
+        })
+
+        client.hookClientEvent("ROOM:RECIEVE_LINES", (amount) => {
+            console.log("client event lines:", amount)
+
+            if (gameMode != "DEATHMATCH") return
+            
+            receiveLines(amount)
         })
     });
 
@@ -277,21 +292,26 @@
 
         let clearedColumn = Math.floor(Math.random() * 10);
         let y = 19;
+        let highestY = 19;
 
         for (let i = 0; i < linesSent; i++) {
             let newShape: Shape = [new Array(10).fill(1)];
 
             newShape[0][clearedColumn] = 0;
 
-            if (y == currentPieceY) {
-                currentPieceY--;
-                pieces.forEach(piece => {
-                    if (!piece.grounded) {
-                        piece.y--;
-                        piece.grounded;
-                    }
-                });
-            }
+            pieces.forEach(piece => {
+                if (piece.y > highestY && piece.color == "#808080") {
+                    highestY = piece.y
+                }
+            })
+
+            pieces.forEach(piece => {
+                // If it's the current piece
+                if (!piece.grounded && highestY == currentPieceY) {
+                    piece.y--;
+                    currentPieceY--;
+                }
+            })
 
             pieces.push({
                 x: 0,
@@ -305,6 +325,7 @@
 
             y--;
         }
+
         updateGrid();
     }
 
@@ -331,6 +352,7 @@
     function clearLines() {
 
         let clearedLines: number[] = [];
+        let greyCount = 0;
 
         // Check for full rows and mark them for clearing
         for (let row = 0; row < grid.length; row++) {
@@ -365,7 +387,6 @@
 
                             piecePartCleared = true;
                             
-                            
                             // Add a new empty row to the top
                             piece.shape.unshift(new Array(pieceWidth).fill(0));
                             // console.table(piece.shape)
@@ -381,10 +402,23 @@
                 }
             };
         });
+
+        // Count the number of grey pieces that have no shape, and remove them from the pieces array
+        for(const piece of pieces) {
+            if (piece.color == "#808080" && piece.shape.length == 0) {
+                greyCount++;
+                pieces.splice(pieces.indexOf(piece), 1);
+            }
+        }
         
         updateScore(clearedLines.length);
 
         updateGrid();
+
+        // greyCount ensures you dont return a line you were sent, so if you clear three lines and two of them were grey, you'll only send one
+        if (gameMode == "DEATHMATCH" && client) {
+            (client.currentRoom as DeathmatchHandler).sendLines(clearedLines.length - greyCount)
+        }
     }
 
     function updateScore(clearedLines: number) {
@@ -726,7 +760,7 @@
                                         if (direction == "down" && !piece.isGhost) newPiece();
                                         if (piece.y == 0 && direction == "down") {
 
-                                            onDeath()
+                                            onDeath(true)
 
                                             return true;
                                         }
@@ -884,13 +918,13 @@
         updateLevel();
     }
 
-    function onDeath () {                                          
+    function onDeath (dispatch: boolean = false) {                                          
         //if (client) client.leaveGame()
 
         //gameOpened = true
         //browsing = true  
 
-        if (client) client.died()
+        if (dispatch && client) client.died()
 
         gameOver = true
 
@@ -984,8 +1018,17 @@
 
                 {#if winner}
                     <div transition:fade class="flex flex-col items-center justify-center mt-4">
-                        <p class="pixel text-lg">winner: {winner.name}</p>
-                        <p class="pixel">with a score of: {winner.score}</p>
+                        {#if winner.name != username}
+                            <p class="pixel text-lg">winner: {winner.name}</p>
+                        {:else}
+                            <p class="pixel text-lg">You won</p>
+                        {/if}
+
+                        <p class="pixel">with a score of: {winner.score}!</p>
+
+                        {#if winner.name != username}
+                            <p class="pixel">You ended with a score of: {score}</p>
+                        {/if}
                     </div>
                 {/if}
 
