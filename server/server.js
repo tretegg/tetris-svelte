@@ -108,7 +108,7 @@ const CLIENT_EVENTS = {
             socket.leave(`room-${id}`)
             socket.join(`browsing`)
 
-            instance.roomHandlerMap[gamemode][id].playerLeft(player)
+            instance.roomHandlerMap[gamemode][id].playerLeft(socket.id)
 
             instance.updateBrowsingPlayers()
 
@@ -143,8 +143,7 @@ const CLIENT_EVENTS = {
                 socket.leave(`room-${id}`)
 
                 if (instance.roomHandlerMap[gamemode][id]) {
-                    instance.roomHandlerMap[gamemode][id].playerLeft(player)
-                    return
+                    instance.roomHandlerMap[gamemode][id].playerLeft(socket.id)
                 }
 
                 instance.updateBrowsingPlayers()
@@ -176,7 +175,7 @@ const CLIENT_EVENTS = {
 
             socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID], gamemode)
 
-            instance.roomHandlerMap[gamemode][roomID].playerJoined(instance.players[socket.id])
+            instance.roomHandlerMap[gamemode][roomID].playerJoined(instance.players[socket.id], socket.id)
 
             instance.updateBrowsingPlayers()
         } 
@@ -201,7 +200,7 @@ const CLIENT_EVENTS = {
 
             socket.emit("ROOM_JOINED", instance.rooms[gamemode][roomID], gamemode)
 
-            instance.roomHandlerMap[gamemode][roomID].playerJoined(instance.players[socket.id])
+            instance.roomHandlerMap[gamemode][roomID].playerJoined(instance.players[socket.id], socket.id)
 
             instance.updateBrowsingPlayers()
         }
@@ -437,12 +436,12 @@ class RoomHandler {
     }
 
 
-    playerJoined(player) {
-        this.players[player.id] = player
+    playerJoined(player, id) {
+        this.players[id] = player
     }
 
-    playerLeft(player) {
-        delete this.players[player.id]
+    playerLeft(id) {
+        delete this.players[id]
     }
 
     playerUpdated(player) {
@@ -487,6 +486,8 @@ class SurvivalHandler extends RoomHandler {
             }
 
             for (const player of Object.entries(this.players)) {
+                console.log(player[1].name, player[1].score)
+
                 if (player[1].score > winner.score) {
                     winner = player[1]
                 }
